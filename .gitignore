@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Segredos / credenciais (NUNCA versionar)
+.env
+*.secret
+credenciais*.json
+
+# Saidas de pesquisa do utilizador (dados pessoais ficam FORA da skill)
+downloads/
+out/
+*.ged
+*.jpg
+*.jpeg
+*.png
+*.pdf
+research_log.md
+!templates/*.md
+!examples/**
+
+# SO
+.DS_Store
+Thumbs.db

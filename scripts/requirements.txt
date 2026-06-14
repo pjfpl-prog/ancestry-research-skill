@@ -1,0 +1,5 @@
+# Dependencias da skill ancestry-research
+# Instale com:  pip install -r scripts/requirements.txt
+requests          # chamadas HTTP as APIs de arquivos (DigitArq) e ao Telegram (notify.py)
+Pillow            # recorte/realce de imagens para leitura paleografica (image_tools.py)
+getmyancestors    # extracao da arvore do FamilySearch para GEDCOM (login do proprio utilizador; sem API key)
