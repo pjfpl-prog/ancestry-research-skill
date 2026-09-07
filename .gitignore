@@ -1,27 +1,78 @@
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-.venv/
-venv/
+# -----------------------------------------------------------------------------
+# LISTA BRANCA: tudo e ignorado por omissao, e so entra o que esta listado aqui.
+#
+# Por que nao lista negra: este repositorio e uma skill de pesquisa, e o habito
+# natural de quem a usa e deixar o resultado do trabalho na propria arvore
+# (JSON de busca, listas de fileId, .ged, scans, scripts ad hoc). Uma lista
+# negra so cobre as extensoes que alguem lembrou de escrever, e um `git add -A`
+# publica o resto. Aqui o padrao e "nao entra"; para versionar algo novo, ha que
+# escrever a linha, e escrever a linha e o momento de pensar no que ha dentro.
+#
+# Por que a lista NAO usa `dir/**`: um curinga desses deixa entrar qualquer
+# extensao dentro da pasta, incluindo o `.ged` ou o `.env` que se queria barrar.
+# Cada pasta abaixo declara as extensoes que aceita, e mais nenhuma.
+#
+# ⚠️ Isto e uma barreira contra ACIDENTE, nao uma fronteira de privacidade. Nao
+# protege dado sensivel escrito DENTRO de um ficheiro que ja e versionado, e nao
+# tira nada do historico. Quem verifica conteudo e tests/test_repo_hygiene.py.
+#
+# ⚠️ Efeito colateral: `git status` deixa de mostrar ficheiro novo nao listado.
+# Antes de commitar, confira com `git status --ignored --untracked-files=all`.
+# -----------------------------------------------------------------------------
 
-# Segredos / credenciais (NUNCA versionar)
+*
+
+# Raiz
+!.gitignore
+!LICENSE
+!README.md
+!CONTRIBUTING.md
+!SKILL.md
+
+# Conhecimento de referencia: so markdown
+!references/
+!references/*.md
+
+# Scripts: so Python e os ficheiros de dependencias
+!scripts/
+!scripts/*.py
+!scripts/requirements.txt
+!scripts/requirements-familysearch.txt
+!scripts/requirements-dev.txt
+
+# Templates: markdown e o esqueleto de workflow
+!templates/
+!templates/*.md
+!templates/*.js
+
+# Exemplos: so markdown. Imagem de exemplo exige linha propria e conferencia.
+!examples/
+!examples/*.md
+
+# Testes: so Python. Os ficheiros GEDCOM de teste sao GERADOS em memoria pelos
+# proprios testes, de proposito: um `.ged` versionado e o caminho mais curto
+# para a arvore de alguem acabar num repositorio publico.
+!tests/
+!tests/*.py
+
+# Integracao continua
+!.github/
+!.github/workflows/
+!.github/workflows/*.yml
+
+# -----------------------------------------------------------------------------
+# Reforco explicito. Redundante com a lista branca acima, mas de proposito: se
+# alguem no futuro afrouxar uma linha `!`, estas continuam a valer.
+# -----------------------------------------------------------------------------
+*.ged
+*.env
 .env
 *.secret
 credenciais*.json
-
-# Saidas de pesquisa do utilizador (dados pessoais ficam FORA da skill)
-downloads/
-out/
-*.ged
-*.jpg
-*.jpeg
-*.png
-*.pdf
-research_log.md
-!templates/*.md
-!examples/**
-
-# SO
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
 .DS_Store
 Thumbs.db
