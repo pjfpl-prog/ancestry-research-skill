@@ -28,6 +28,8 @@
 !README.md
 !CONTRIBUTING.md
 !SKILL.md
+!pytest.ini
+!ruff.toml
 
 # Conhecimento de referencia: so markdown
 !references/

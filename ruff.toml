@@ -1,0 +1,24 @@
+# Configuracao de lint FIXADA no repositorio, de proposito.
+#
+# Sem este ficheiro o ruff sobe na arvore de diretorios a procura de config e
+# acaba a usar a do ambiente de quem corre: o mesmo codigo passa numa maquina e
+# falha noutra, e o CI deixa de dizer alguma coisa sobre o codigo.
+
+line-length = 100
+target-version = "py39"   # o minimo que o README promete
+
+[lint]
+# Conjunto deliberadamente pequeno: erros reais e importacoes por ordem.
+# Nao incluimos UP (pyupgrade) porque o codigo usa formatacao com % de
+# proposito, por consistencia e por compatibilidade com 3.9.
+select = ["E", "F", "W", "I", "B"]
+ignore = [
+    "E741",  # nomes l/r/b sao os da caixa de recorte (esquerda/direita/baixo)
+]
+
+[lint.per-file-ignores]
+# Os testes importam os modulos depois de mexer no sys.path: E402 e inevitavel.
+"tests/*.py" = ["E402"]
+
+[format]
+quote-style = "preserve"
