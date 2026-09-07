@@ -9,19 +9,20 @@ fichas descritivas, listagem de imagens nem download das imagens em alta resoluc
 Este utilitario fala diretamente com a API JSON do DigitArq e expoe quatro
 subcomandos:
 
-  search   Pesquisa documentos por termo livre.
-           Imprime: referenceCode | datas | hasImages | GUID | titulo
+  search   Pesquisa documentos por termo livre, paginando ate ao limite pedido.
+           Imprime: referenceCode | datas | ficheiros | GUID | titulo
            Ex.:  python digitarq.py search "TERMO"
-                 python digitarq.py search "PT/TT/PRQ" --max 50 --json
+                 python digitarq.py search "PT/TT/PRQ" --max 50 --sort reference_code
+                 python digitarq.py search "TERMO" --with-images --json
 
   details  Mostra a ficha descritiva de um documento (descricao, filiacao,
            datas, codigo de referencia, GUID do pai). Para a Inquisicao traz o
            campo "Estatuto social".
            Ex.:  python digitarq.py details {GUID}
 
-  images   Lista as imagens (fileId + nome) de um documento.
+  images   Lista TODAS as imagens (fileId + nome) de um documento, paginando.
            Ex.:  python digitarq.py images {GUID}
-                 python digitarq.py images {GUID} --max 500
+                 python digitarq.py images {GUID} --max 100
 
   download Baixa uma imagem em alta resolucao por fileId.
            Ex.:  python digitarq.py download {fileId}
@@ -31,6 +32,27 @@ Notas sobre codigos de referencia de paroquias:
   PT/TT/PRQ/<cod-paroquia>/<serie>/<livro>
   serie 001 = baptismos, 002 = casamentos, 003 = obitos, 004 = mistos.
 
+--- PAGINACAO, LEIA ANTES DE CONFIAR NO RESULTADO ---------------------------
+A API devolve 10 resultados por pedido e ignora pedidos de pagina maior. Para
+ver alem dos 10 primeiros e preciso repetir o pedido movendo `fromIndex`.
+
+A ordenacao PADRAO do portal e por RELEVANCIA, e relevancia NAO da ordem total
+estavel: empates trocam de posicao entre pedidos, de modo que paginar por
+relevancia repete alguns resultados e pode saltar outros. Verificado em
+07/09/2026: com a ordenacao padrao, `fromIndex=10` devolveu 3 itens que ja
+tinham vindo na primeira pagina.
+
+Por isso:
+  * `--sort relevance` (padrao) preserva a ordem do portal, que e a que serve
+    para procurar um NOME. Ao passar da primeira pagina, este script avisa no
+    stderr, remove repetidos pelo GUID e diz quantos removeu. Mesmo assim NAO
+    ha garantia de completude.
+  * `--sort reference_code` (ou outro campo) da ordem estavel e paginacao
+    integra, e e o que serve para varrer uma COTA. Verificado: 5 paginas de uma
+    query de 43 resultados devolveram 43 unicos, sem sobreposicao.
+Escolha conforme a pergunta. Nao existe cursor/snapshot do lado do servidor: se
+o acervo mudar durante a paginacao, resultado pode escapar em qualquer modo.
+
 Dependencia: requests  ->  pip install requests
 
 Sem credenciais, sem dados pessoais e sem GUIDs reais embutidos: todos os
@@ -39,10 +61,11 @@ identificadores sao fornecidos pelo utilizador na linha de comandos.
 
 import argparse
 import json
+import os
 import sys
+import time
 
 import requests
-
 
 BASE = "https://digitarq.arquivos.pt"
 SEARCH_URL = BASE + "/api/docs/search"
@@ -52,12 +75,44 @@ DISSEMINATION_URL = BASE + "/rdigital/dissemination"
 THUMB_URL = BASE + "/rdigital/thumb"
 
 DEFAULT_TIMEOUT = 30  # segundos
-USER_AGENT = "digitarq-cli/1.0 (+ancestry-research-skill)"
+USER_AGENT = "digitarq-cli/2.0 (+ancestry-research-skill)"
+
+# O servidor fixa a pagina em 10; pedir mais nao aumenta (verificado 07/09/2026).
+SEARCH_PAGE = 10
+# Teto de resultados por execucao. 500 = 50 pedidos. Acima disto o caminho certo
+# nao e a busca: e localizar o livro e varrer as imagens com `images`.
+HARD_CAP = 500
+# Campos de ordenacao aceites. Nome errado devolve HTTP 400.
+SORT_FIELDS = ("relevance", "reference_code", "title", "dateInitial", "dateFinal")
+# Pausa entre pedidos: o DigitArq e servico publico, nao o martele.
+DEFAULT_DELAY = 0.5
+MAX_RETRIES = 3
+
+# Assinaturas de ficheiro de imagem (JPEG, PNG, TIFF LE/BE, GIF, BMP, WEBP=RIFF).
+IMAGE_MAGIC = (b"\xff\xd8\xff", b"\x89PNG\r\n\x1a\n", b"II*\x00", b"MM\x00*",
+               b"GIF87a", b"GIF89a", b"BM", b"RIFF")
+
+
+class DigitarqError(Exception):
+    """Falha de rede, de contrato da API ou de conteudo inesperado."""
 
 
 # --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
+def _safe_stdout():
+    """
+    Consolas Windows em cp1252 rebentam com UnicodeEncodeError ao imprimir nomes
+    fora do latim (verificado). Trocar o erro por '?' e melhor que abortar a
+    pesquisa; a informacao completa continua disponivel com --json.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):  # pragma: no cover
+            pass
+
+
 def _session():
     """Cria uma sessao HTTP com cabecalho de User-Agent."""
     s = requests.Session()
@@ -65,37 +120,63 @@ def _session():
     return s
 
 
-def _get_json(session, url, params=None):
-    """GET que devolve JSON, com tratamento de erros e timeout."""
+def _sleep_from_retry_after(resp, fallback):
+    """Respeita Retry-After quando o servidor o envia; senao usa o fallback."""
+    valor = resp.headers.get("Retry-After", "")
     try:
-        resp = session.get(url, params=params, timeout=DEFAULT_TIMEOUT)
-        resp.raise_for_status()
-    except requests.exceptions.Timeout:
-        raise SystemExit("Erro: tempo esgotado (timeout) ao contactar %s" % url)
-    except requests.exceptions.HTTPError as exc:
-        raise SystemExit("Erro HTTP %s ao contactar %s" % (exc, url))
-    except requests.exceptions.RequestException as exc:
-        raise SystemExit("Erro de rede ao contactar %s: %s" % (url, exc))
-    try:
-        return resp.json()
-    except ValueError:
-        raise SystemExit("Erro: resposta nao e JSON valido de %s" % url)
+        return max(float(valor), fallback)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _get_json(session, url, params=None, delay=DEFAULT_DELAY):
+    """
+    GET que devolve JSON, com timeout e uma retentativa educada em 429/5xx.
+    Levanta DigitarqError (nunca SystemExit: o modulo tem de ser importavel).
+    """
+    espera = delay
+    ultimo = ""
+    for tentativa in range(1, MAX_RETRIES + 1):
+        try:
+            resp = session.get(url, params=params, timeout=DEFAULT_TIMEOUT)
+        except requests.exceptions.Timeout:
+            ultimo = "tempo esgotado (timeout)"
+        except requests.exceptions.RequestException as exc:
+            ultimo = "erro de rede: %s" % exc
+        else:
+            if resp.status_code == 429 or 500 <= resp.status_code < 600:
+                ultimo = "HTTP %s" % resp.status_code
+                if tentativa < MAX_RETRIES:
+                    time.sleep(_sleep_from_retry_after(resp, espera))
+                    espera *= 2
+                    continue
+            elif not resp.ok:
+                raise DigitarqError("HTTP %s ao contactar %s" % (resp.status_code, url))
+            else:
+                try:
+                    return resp.json()
+                except ValueError:
+                    raise DigitarqError("resposta nao e JSON valido de %s" % url) from None
+        if tentativa < MAX_RETRIES:
+            time.sleep(espera)
+            espera *= 2
+    raise DigitarqError("falhou %d vezes ao contactar %s (%s)" % (MAX_RETRIES, url, ultimo))
 
 
 def _flatten_date(value):
     """
     Normaliza um campo de data. A API ora devolve uma string, ora um dict
-    {"value": "1700-01-01", ...}. Devolve sempre uma string (ou "").
+    {"value": "1700-01-01", ...}, ora um dict com TODOS os campos a null.
+    Devolve sempre uma string; string vazia quando nao ha data utilizavel.
+    NUNCA devolve JSON cru: um dict vazio na tela e ruido, nao informacao.
     """
     if value is None:
         return ""
     if isinstance(value, dict):
-        # tenta varias chaves comuns
         for key in ("value", "date", "text", "displayValue"):
-            if key in value and value[key]:
+            if value.get(key):
                 return str(value[key])
-        # ultimo recurso: serializa o dict
-        return json.dumps(value, ensure_ascii=False)
+        return ""
     return str(value)
 
 
@@ -115,9 +196,9 @@ def _flatten_text(value):
         return " / ".join(p for p in parts if p)
     if isinstance(value, dict):
         for key in ("value", "text", "displayValue", "title", "name"):
-            if key in value and value[key]:
+            if value.get(key):
                 return _flatten_text(value[key])
-        return json.dumps(value, ensure_ascii=False)
+        return ""
     return str(value)
 
 
@@ -131,62 +212,178 @@ def _first_present(d, keys, default=""):
     return default
 
 
-def _bool_str(value):
-    """Converte um valor 'truthy' em 'sim'/'nao'."""
-    if isinstance(value, bool):
-        return "sim" if value else "nao"
-    if isinstance(value, str):
-        return "sim" if value.strip().lower() in ("true", "1", "yes", "sim") else "nao"
-    return "sim" if value else "nao"
+def _files_label(item):
+    """
+    Quantos ficheiros digitais o resultado declara.
+
+    ATENCAO: o resultado da BUSCA nao traz `hasImages` (a chave simplesmente nao
+    existe ali; quem a tem e o `details`). O que existe e `filesCount`. A versao
+    anterior deste script procurava `hasImages` na busca, nao encontrava, e por
+    isso imprimia SEMPRE "imagens=nao", inclusive para livros digitalizados.
+
+    Rotulamos "ficheiros", nao "imagens", de proposito: `filesCount` conta os
+    objetos digitais associados a ficha. Num livro paroquial conferido em
+    07/09/2026 os 284 ficheiros eram 284 JPEG, mas o contrato da API nao promete
+    que todo ficheiro seja imagem. Use `details` para confirmar `hasImages`.
+    """
+    valor = item.get("filesCount")
+    if valor is None:
+        return "?"
+    try:
+        return str(int(valor))
+    except (TypeError, ValueError):
+        return "?"
+
+
+def _guid_of(item):
+    return _flatten_text(_first_present(item, ["id", "guid", "objectId"]))
+
+
+def _datas_of(item):
+    d_ini = _flatten_date(_first_present(item, ["dateInitial", "startDate"]))
+    d_fim = _flatten_date(_first_present(item, ["dateFinal", "endDate"]))
+    if d_fim and d_fim != d_ini:
+        return "%s a %s" % (d_ini or "s/data", d_fim)
+    return d_ini or "s/data"
 
 
 # --------------------------------------------------------------------------- #
-# Subcomando: search
+# Busca com paginacao
 # --------------------------------------------------------------------------- #
+def search(session, termo, obj_type="DOCUMENT", limit=30, sort="relevance",
+           order="asc", with_images=False, delay=DEFAULT_DELAY, avisar=None):
+    """
+    Pagina a busca ate reunir `limit` resultados ou esgotar o total.
+
+    Devolve (resultados, total, notas). `notas` e uma lista de avisos em texto:
+    repetidos removidos, paginacao interrompida, contrato inesperado. O chamador
+    decide o que mostrar; nada e escondido.
+    """
+    if sort not in SORT_FIELDS:
+        raise DigitarqError("sort invalido: %r. Aceites: %s" % (sort, ", ".join(SORT_FIELDS)))
+    if limit is None or limit < 1:
+        raise DigitarqError("--max tem de ser >= 1")
+    teto = min(limit, HARD_CAP)
+    notas = []
+    if limit > HARD_CAP:
+        notas.append("pedido de %d cortado no teto de %d resultados por execucao "
+                     "(acima disto, localize o livro e use o subcomando images)"
+                     % (limit, HARD_CAP))
+    if avisar is None:
+        avisar = lambda _m: None  # noqa: E731
+
+    resultados, vistos, total, offset = [], set(), None, 0
+    repetidos = 0
+    while True:
+        params = {"query": termo, "objType": obj_type,
+                  "fromIndex": offset, "max": SEARCH_PAGE, "sortField": sort}
+        if sort != "relevance":
+            params["sortOrder"] = order
+        if with_images:
+            params["hasImages"] = "true"
+
+        data = _get_json(session, SEARCH_URL, params=params, delay=delay)
+        pagina = data.get("results")
+        if not isinstance(pagina, list):
+            notas.append("a API devolveu 'results' fora do formato esperado; "
+                         "paginacao interrompida")
+            break
+
+        # O total e relido a cada pagina: se o acervo mudar durante a varredura,
+        # e melhor saber do que continuar com um numero congelado.
+        novo_total = data.get("total")
+        try:
+            novo_total = int(novo_total)
+        except (TypeError, ValueError):
+            novo_total = None
+        if novo_total is not None:
+            if total is not None and novo_total != total:
+                notas.append("o total mudou durante a paginacao (%d -> %d): o acervo "
+                             "foi alterado, o resultado pode estar incompleto"
+                             % (total, novo_total))
+            total = novo_total
+
+        if not pagina:
+            break
+
+        antes = len(resultados)
+        for item in pagina:
+            guid = _guid_of(item)
+            chave = guid or json.dumps(item, sort_keys=True)[:200]
+            if chave in vistos:
+                repetidos += 1
+                continue
+            vistos.add(chave)
+            resultados.append(item)
+
+        if len(resultados) == antes:
+            # A pagina inteira era repetida: sem progresso, parar em vez de
+            # rodar em circulos gastando pedidos do servico publico.
+            notas.append("pagina em fromIndex=%d nao trouxe nenhum resultado novo; "
+                         "paginacao interrompida" % offset)
+            break
+
+        offset += len(pagina)
+        if len(resultados) >= teto:
+            break
+        if total is not None and offset >= total:
+            break
+        if len(pagina) < SEARCH_PAGE and total is not None and offset < total:
+            notas.append("o servidor devolveu %d resultados (menos que a pagina de %d) "
+                         "antes de esgotar o total; paginacao interrompida"
+                         % (len(pagina), SEARCH_PAGE))
+            break
+        time.sleep(delay)
+
+    if repetidos:
+        notas.append("%d resultado(s) repetido(s) removido(s) por GUID%s"
+                     % (repetidos,
+                        " (efeito da ordenacao por relevancia; use --sort reference_code "
+                        "para paginacao integra)" if sort == "relevance" else ""))
+    return resultados[:teto], total, notas
+
+
 def cmd_search(args):
     session = _session()
-    params = {
-        "query": args.termo,
-        "objType": args.obj_type,
-    }
-    data = _get_json(session, SEARCH_URL, params=params)
+    if args.sort == "relevance" and args.max > SEARCH_PAGE:
+        sys.stderr.write(
+            "Aviso: --sort relevance nao da ordem estavel; alem da primeira pagina pode\n"
+            "       repetir e saltar resultados. Para varrer uma cota de forma integra\n"
+            "       use --sort reference_code.\n")
+
+    resultados, total, notas = search(
+        session, args.termo, obj_type=args.obj_type, limit=args.max,
+        sort=args.sort, order=args.order, with_images=args.with_images,
+        delay=args.delay)
 
     if args.json:
-        print(json.dumps(data, ensure_ascii=False, indent=2))
+        print(json.dumps({"total": total, "returned": len(resultados),
+                          "notes": notas, "results": resultados},
+                         ensure_ascii=False, indent=2))
         return
 
-    total = _first_present(data, ["total", "totalResults", "count"], default=0)
-    results = _first_present(data, ["results", "items", "docs"], default=[])
-    if not isinstance(results, list):
-        results = []
-
-    print("Total de resultados: %s" % total)
-    if args.max and len(results) > args.max:
-        results = results[: args.max]
-
-    if not results:
+    print("Total de resultados: %s" % (total if total is not None else "?"))
+    if not resultados:
         print("(sem resultados)")
+        for n in notas:
+            sys.stderr.write("Aviso: %s\n" % n)
         return
 
     print("-" * 78)
-    for item in results:
-        guid = _flatten_text(_first_present(item, ["id", "guid", "objectId"]))
+    for item in resultados:
         ref = _flatten_text(_first_present(item, ["referenceCode", "reference"]))
         title = _flatten_text(_first_present(item, ["titles", "title", "name"]))
-        d_ini = _flatten_date(_first_present(item, ["dateInitial", "startDate"]))
-        d_fim = _flatten_date(_first_present(item, ["dateFinal", "endDate"]))
-        has_img = _bool_str(_first_present(item, ["hasImages", "hasImage"], default=False))
-
-        datas = d_ini
-        if d_fim and d_fim != d_ini:
-            datas = "%s a %s" % (d_ini, d_fim)
-        datas = datas or "s/data"
-
-        print("%s | %s | imagens=%s | %s" % (ref or "s/ref", datas, has_img, guid))
+        print("%s | %s | ficheiros=%s | %s"
+              % (ref or "s/ref", _datas_of(item), _files_label(item), _guid_of(item)))
         if title:
             print("    %s" % title)
     print("-" * 78)
-    print("Mostrados %d de %s." % (len(results), total))
+    print("Mostrados %d de %s." % (len(resultados), total if total is not None else "?"))
+    if total is not None and len(resultados) < total:
+        print("Faltam %d: repita com --max maior (teto %d) ou refine o termo."
+              % (total - len(resultados), HARD_CAP))
+    for n in notas:
+        sys.stderr.write("Aviso: %s\n" % n)
 
 
 # --------------------------------------------------------------------------- #
@@ -194,29 +391,24 @@ def cmd_search(args):
 # --------------------------------------------------------------------------- #
 def cmd_details(args):
     session = _session()
-    url = DETAILS_URL.format(guid=args.guid)
-    data = _get_json(session, url)
+    data = _get_json(session, DETAILS_URL.format(guid=args.guid))
 
     if args.json:
         print(json.dumps(data, ensure_ascii=False, indent=2))
         return
 
-    guid = _flatten_text(_first_present(data, ["id", "guid", "objectId"])) or args.guid
+    guid = _guid_of(data) or args.guid
     ref = _flatten_text(_first_present(data, ["referenceCode", "reference"]))
     title = _flatten_text(_first_present(data, ["titles", "title", "name"]))
-    d_ini = _flatten_date(_first_present(data, ["dateInitial", "startDate"]))
-    d_fim = _flatten_date(_first_present(data, ["dateFinal", "endDate"]))
-    parent = _flatten_text(
-        _first_present(data, ["parentId", "parent", "parentGuid"])
-    )
+    parent = _flatten_text(_first_present(data, ["parentId", "parent", "parentGuid"]))
     descricao = _flatten_text(
-        _first_present(data, ["scopeContent", "description", "scopeAndContent"])
-    )
+        _first_present(data, ["scopeContent", "description", "scopeAndContent"]))
     filiacao = _flatten_text(_first_present(data, ["filiacao", "filiation"]))
     estatuto = _flatten_text(
-        _first_present(data, ["estatutoSocial", "socialStatus", "estatuto"])
-    )
-    has_img = _bool_str(_first_present(data, ["hasImages", "hasImage"], default=False))
+        _first_present(data, ["estatutoSocial", "socialStatus", "estatuto"]))
+    # Aqui a chave EXISTE: e o details, nao a busca.
+    tem_img = data.get("hasImages")
+    tem_img = "sim" if tem_img is True else ("nao" if tem_img is False else "?")
 
     print("=" * 78)
     print("GUID:            %s" % guid)
@@ -224,12 +416,10 @@ def cmd_details(args):
         print("Cod. referencia: %s" % ref)
     if title:
         print("Titulo:          %s" % title)
-    datas = d_ini
-    if d_fim and d_fim != d_ini:
-        datas = "%s a %s" % (d_ini, d_fim)
-    if datas:
+    datas = _datas_of(data)
+    if datas and datas != "s/data":
         print("Datas:           %s" % datas)
-    print("Tem imagens:     %s" % has_img)
+    print("Tem imagens:     %s" % tem_img)
     if parent:
         print("Pai (parent):    %s" % parent)
     if filiacao:
@@ -246,27 +436,52 @@ def cmd_details(args):
 # --------------------------------------------------------------------------- #
 # Subcomando: images
 # --------------------------------------------------------------------------- #
+def list_images(session, guid, limit=None, delay=DEFAULT_DELAY):
+    """
+    Lista as imagens de um documento, paginando ate ao `total` que o proprio
+    endpoint declara. A versao anterior pedia `max=500` e parava ali: livros
+    maiores perdiam o fim em silencio.
+    """
+    imagens, total, offset = [], None, 0
+    while True:
+        data = _get_json(session, IMAGES_URL.format(guid=guid),
+                         params={"from": offset, "max": 500}, delay=delay)
+        pagina = data.get("results")
+        if not isinstance(pagina, list) or not pagina:
+            break
+        try:
+            total = int(data.get("total"))
+        except (TypeError, ValueError):
+            total = total
+        imagens.extend(pagina)
+        offset += len(pagina)
+        if limit is not None and len(imagens) >= limit:
+            break
+        if total is not None and offset >= total:
+            break
+        time.sleep(delay)
+    if limit is not None:
+        imagens = imagens[:limit]
+    return imagens, total
+
+
 def cmd_images(args):
     session = _session()
-    url = IMAGES_URL.format(guid=args.guid)
-    params = {"from": args.start, "max": args.max}
-    data = _get_json(session, url, params=params)
+    imagens, total = list_images(session, args.guid, limit=args.max, delay=args.delay)
 
     if args.json:
-        print(json.dumps(data, ensure_ascii=False, indent=2))
+        print(json.dumps({"total": total, "returned": len(imagens), "results": imagens},
+                         ensure_ascii=False, indent=2))
         return
 
-    results = _first_present(data, ["results", "items", "images"], default=[])
-    if not isinstance(results, list):
-        results = []
-
-    if not results:
+    if not imagens:
         print("(sem imagens para este documento)")
         return
 
-    print("Imagens do documento %s: %d" % (args.guid, len(results)))
+    print("Imagens do documento %s: %d de %s"
+          % (args.guid, len(imagens), total if total is not None else "?"))
     print("-" * 78)
-    for item in results:
+    for item in imagens:
         file_id = _flatten_text(_first_present(item, ["id", "fileId"]))
         name = _flatten_text(_first_present(item, ["name", "title", "label"]))
         print("fileId=%s\t%s" % (file_id or "?", name or ""))
@@ -280,37 +495,61 @@ def cmd_images(args):
 def cmd_download(args):
     session = _session()
     base = THUMB_URL if args.thumb else DISSEMINATION_URL
-    params = {"fileId": args.file_id}
-
     out = args.saida or ("thumb_%s.jpg" % args.file_id if args.thumb else "%s.jpg" % args.file_id)
+    out = os.path.abspath(out)
+
+    if os.path.exists(out) and not args.force:
+        raise DigitarqError("'%s' ja existe. Use --force para sobrescrever ou indique "
+                            "outro nome de saida." % out)
 
     try:
-        resp = session.get(base, params=params, timeout=DEFAULT_TIMEOUT, stream=True)
-        resp.raise_for_status()
+        resp = session.get(base, params={"fileId": args.file_id},
+                           timeout=DEFAULT_TIMEOUT, stream=True)
     except requests.exceptions.Timeout:
-        raise SystemExit("Erro: tempo esgotado (timeout) ao baixar fileId=%s" % args.file_id)
-    except requests.exceptions.HTTPError as exc:
-        raise SystemExit("Erro HTTP %s ao baixar fileId=%s" % (exc, args.file_id))
+        raise DigitarqError("tempo esgotado (timeout) ao baixar fileId=%s" % args.file_id) from None
     except requests.exceptions.RequestException as exc:
-        raise SystemExit("Erro de rede ao baixar fileId=%s: %s" % (args.file_id, exc))
+        raise DigitarqError("erro de rede ao baixar fileId=%s: %s" % (args.file_id, exc)) from None
 
-    ctype = resp.headers.get("Content-Type", "")
-    if "json" in ctype.lower() or "html" in ctype.lower():
-        # Provavelmente uma pagina de erro em vez da imagem
-        sys.stderr.write(
-            "Aviso: a resposta nao parece ser uma imagem (Content-Type: %s). "
-            "Verifique o fileId.\n" % ctype
-        )
+    if not resp.ok:
+        raise DigitarqError("HTTP %s ao baixar fileId=%s" % (resp.status_code, args.file_id))
 
+    # DECIDIR ANTES DE GRAVAR. A versao anterior avisava no stderr e gravava a
+    # pagina de erro como .jpg, saindo com codigo 0; se o destino ja existisse,
+    # destruia o ficheiro bom. Aqui nada e escrito enquanto nao se confirma que
+    # o inicio do corpo tem assinatura de imagem.
+    ctype = (resp.headers.get("Content-Type") or "").lower()
+    chunks = resp.iter_content(chunk_size=65536)
+    primeiro = b""
+    for pedaco in chunks:
+        if pedaco:
+            primeiro = pedaco
+            break
+
+    if "html" in ctype or "json" in ctype or not primeiro.startswith(IMAGE_MAGIC):
+        raise DigitarqError(
+            "a resposta para fileId=%s nao e uma imagem (Content-Type: %s). "
+            "Nada foi gravado; confirme o fileId." % (args.file_id, ctype or "?"))
+
+    # Grava em ficheiro temporario e so no fim substitui o destino: um download
+    # interrompido nao deixa .jpg truncado no lugar de um bom.
+    parcial = out + ".part"
     total = 0
     try:
-        with open(out, "wb") as fh:
-            for chunk in resp.iter_content(chunk_size=65536):
-                if chunk:
-                    fh.write(chunk)
-                    total += len(chunk)
+        os.makedirs(os.path.dirname(parcial) or ".", exist_ok=True)
+        with open(parcial, "wb") as fh:
+            fh.write(primeiro)
+            total += len(primeiro)
+            for pedaco in chunks:
+                if pedaco:
+                    fh.write(pedaco)
+                    total += len(pedaco)
+        os.replace(parcial, out)
     except OSError as exc:
-        raise SystemExit("Erro ao gravar '%s': %s" % (out, exc))
+        try:
+            os.remove(parcial)
+        except OSError:
+            pass
+        raise DigitarqError("erro ao gravar '%s': %s" % (out, exc)) from None
 
     print("Gravado: %s (%d bytes)" % (out, total))
 
@@ -328,63 +567,66 @@ def build_parser():
     sub = parser.add_subparsers(dest="comando", metavar="<comando>")
     sub.required = True
 
-    # search
     p_search = sub.add_parser("search", help="Pesquisa documentos por termo livre.")
     p_search.add_argument("termo", help="Termo de pesquisa (ex.: \"PT/TT/PRQ\" ou um lugar).")
-    p_search.add_argument(
-        "--obj-type",
-        default="DOCUMENT",
-        help="objType da pesquisa (padrao: DOCUMENT).",
-    )
-    p_search.add_argument(
-        "--max",
-        type=int,
-        default=30,
-        help="Numero maximo de resultados a imprimir (padrao: 30).",
-    )
-    p_search.add_argument("--json", action="store_true", help="Imprime o JSON bruto.")
+    p_search.add_argument("--obj-type", default="DOCUMENT",
+                          help="objType da pesquisa (padrao: DOCUMENT).")
+    p_search.add_argument("--max", type=int, default=30,
+                          help="Quantos resultados reunir, paginando (padrao: 30, teto %d)."
+                               % HARD_CAP)
+    p_search.add_argument("--sort", default="relevance", choices=list(SORT_FIELDS),
+                          help="Campo de ordenacao. 'relevance' (padrao) e a ordem do portal "
+                               "e serve para procurar NOME, mas NAO pagina de forma fiavel. "
+                               "'reference_code' da paginacao integra e serve para varrer COTA.")
+    p_search.add_argument("--order", default="asc", choices=["asc", "desc"],
+                          help="Sentido da ordenacao (ignorado com --sort relevance).")
+    p_search.add_argument("--with-images", action="store_true",
+                          help="Filtra no SERVIDOR so documentos com imagens (hasImages=true).")
+    p_search.add_argument("--delay", type=float, default=DEFAULT_DELAY,
+                          help="Pausa em segundos entre pedidos (padrao: %.1f)." % DEFAULT_DELAY)
+    p_search.add_argument("--json", action="store_true",
+                          help="Imprime um objeto JSON unico com total, notas e resultados.")
     p_search.set_defaults(func=cmd_search)
 
-    # details
     p_details = sub.add_parser("details", help="Mostra a ficha descritiva de um documento.")
     p_details.add_argument("guid", help="GUID do documento.")
     p_details.add_argument("--json", action="store_true", help="Imprime o JSON bruto.")
     p_details.set_defaults(func=cmd_details)
 
-    # images
     p_images = sub.add_parser("images", help="Lista fileIds e nomes das imagens de um documento.")
     p_images.add_argument("guid", help="GUID do documento.")
-    p_images.add_argument("--start", type=int, default=0, help="Indice inicial (from). Padrao: 0.")
-    p_images.add_argument("--max", type=int, default=500, help="Maximo de imagens. Padrao: 500.")
+    p_images.add_argument("--max", type=int, default=None,
+                          help="Teto de imagens a listar (padrao: todas).")
+    p_images.add_argument("--delay", type=float, default=DEFAULT_DELAY,
+                          help="Pausa em segundos entre pedidos (padrao: %.1f)." % DEFAULT_DELAY)
     p_images.add_argument("--json", action="store_true", help="Imprime o JSON bruto.")
     p_images.set_defaults(func=cmd_images)
 
-    # download
     p_download = sub.add_parser("download", help="Baixa uma imagem por fileId.")
     p_download.add_argument("file_id", help="fileId da imagem (numero).")
-    p_download.add_argument(
-        "saida",
-        nargs="?",
-        default=None,
-        help="Caminho de saida (padrao: <fileId>.jpg).",
-    )
-    p_download.add_argument(
-        "--thumb",
-        action="store_true",
-        help="Baixa a miniatura (/rdigital/thumb) em vez da alta resolucao.",
-    )
+    p_download.add_argument("saida", nargs="?", default=None,
+                            help="Caminho de saida (padrao: <fileId>.jpg).")
+    p_download.add_argument("--thumb", action="store_true",
+                            help="Baixa a miniatura (/rdigital/thumb) em vez da alta resolucao.")
+    p_download.add_argument("--force", action="store_true",
+                            help="Sobrescreve o ficheiro de saida se ja existir.")
     p_download.set_defaults(func=cmd_download)
 
     return parser
 
 
 def main(argv=None):
+    _safe_stdout()
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
         args.func(args)
+    except DigitarqError as exc:
+        sys.stderr.write("Erro: %s\n" % exc)
+        return 1
     except KeyboardInterrupt:
-        raise SystemExit("\nInterrompido pelo utilizador.")
+        sys.stderr.write("\nInterrompido pelo utilizador.\n")
+        return 130
     return 0
 
 
