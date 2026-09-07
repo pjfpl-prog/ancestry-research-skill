@@ -29,8 +29,10 @@ Exemplos:
 from __future__ import annotations
 
 import argparse
+import io
 import os
 import sys
+import tempfile
 from typing import Optional, Tuple
 
 try:
@@ -135,11 +137,20 @@ def _abs_box(im: "Image.Image", box_rel: BoxRel) -> Tuple[int, int, int, int]:
     top = max(0, min(h, int(round(t * h))))
     right = max(0, min(w, int(round(r * w))))
     bottom = max(0, min(h, int(round(b * h))))
-    # Garante pelo menos 1 px em cada eixo.
+    # Garante pelo menos 1 px em cada eixo, INCLUSIVE quando a caixa cai na
+    # borda direita/inferior. A versao anterior fazia `right = min(w, left+1)`:
+    # com left == w (caixa tipo 0.999,0,1,1) isso devolvia right == left e o
+    # recorte saia com 0 px de largura, contrariando o proprio docstring.
     if right <= left:
-        right = min(w, left + 1)
+        if left < w:
+            right = left + 1
+        else:
+            left, right = max(0, w - 1), w
     if bottom <= top:
-        bottom = min(h, top + 1)
+        if top < h:
+            bottom = top + 1
+        else:
+            top, bottom = max(0, h - 1), h
     return (left, top, right, bottom)
 
 
@@ -184,16 +195,31 @@ def download(source: str, out: str, *, is_file_id: bool = False,
         data = resp.read()
     if not data:
         raise RuntimeError("download vazio (0 bytes) - verifique o fileId/url")
-    with open(out, "wb") as fh:
-        fh.write(data)
-    # Validacao leve: confirma que o que veio e mesmo uma imagem.
+
+    # VALIDAR ANTES DE TOCAR NO DESTINO. A versao anterior gravava em `out` e so
+    # depois abria com o PIL para conferir: quando vinha HTML de erro, o
+    # ficheiro que ja estivesse naquele caminho era destruido de qualquer forma.
+    # Aqui a validacao e em memoria e a escrita e atomica (temporario + replace).
     try:
-        with Image.open(out) as probe:
+        with Image.open(io.BytesIO(data)) as probe:
             probe.verify()
     except Exception as exc:
         raise RuntimeError(
-            "o conteudo baixado nao e uma imagem valida (talvez HTML de erro)"
+            "o conteudo baixado nao e uma imagem valida (talvez HTML de erro); "
+            "nada foi gravado em %r" % out
         ) from exc
+
+    fd, parcial = tempfile.mkstemp(prefix=".dl_", dir=parent or ".")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+        os.replace(parcial, out)
+    except OSError:
+        try:
+            os.remove(parcial)
+        except OSError:
+            pass
+        raise
     return out
 
 
