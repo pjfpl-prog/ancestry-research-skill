@@ -41,6 +41,7 @@ import argparse
 import os
 import sys
 import unicodedata
+from urllib.parse import quote
 
 try:
     import requests
@@ -92,6 +93,45 @@ def _api_url(token: str, method: str) -> str:
     return f"https://api.telegram.org/bot{token}/{method}"
 
 
+def _redact(texto: str, token: str) -> str:
+    """
+    Remove o token de qualquer texto antes de ele ir para stderr ou log.
+
+    Por que isto existe: o token do bot viaja NO CAMINHO do URL da Bot API, e as
+    excecoes do `requests` trazem o URL completo na mensagem. Interpolar `{exc}`
+    numa mensagem de erro, como a versao anterior fazia, escrevia a credencial
+    no stderr e em qualquer log que capturasse o processo.
+
+    Cobre tambem a forma percent-encoded do token: os ':' viram '%3A' quando o
+    URL e reproduzido codificado por alguma camada intermedia.
+    """
+    if not token:
+        return texto
+    for forma in (token, token.replace(":", "%3A"), quote(token, safe="")):
+        if forma:
+            texto = texto.replace(forma, "<token-redigido>")
+    return texto
+
+
+def _erro_de_rede(exc: Exception, token: str, acao: str) -> "NotifyError":
+    """
+    Constroi o NotifyError de uma falha de rede sem transportar o URL.
+
+    Guarda a CLASSE da excecao (ConnectTimeout, ConnectionError, SSLError...),
+    que e o que diz ao utilizador o que aconteceu, e passa a mensagem pelo
+    redator.
+
+    O erro e CONSTRUIDO aqui mas levantado FORA do bloco `except` pelo chamador.
+    Isso e deliberado: `raise ... from None` limpa o `__cause__` e esconde o
+    encadeamento no traceback, mas o `__context__` continua a apontar para a
+    excecao original do requests, que tem o URL com o token dentro. Um logger
+    que percorra `__context__` acharia a credencial. Levantar fora do `except`,
+    quando ja nao ha excecao ativa a ser tratada, deixa `__context__` a None.
+    """
+    return NotifyError("%s: %s: %s" % (acao, type(exc).__name__,
+                                       _redact(str(exc), token)))
+
+
 # --------------------------------------------------------------------------- #
 # Higienizacao de texto (emojis / caracteres problematicos)
 # --------------------------------------------------------------------------- #
@@ -138,8 +178,13 @@ def strip_emoji(text: str) -> str:
 # --------------------------------------------------------------------------- #
 # Tratamento de resposta HTTP
 # --------------------------------------------------------------------------- #
-def _handle_response(resp: "requests.Response") -> dict:
-    """Valida a resposta da API e devolve o JSON, levantando NotifyError."""
+def _handle_response(resp: "requests.Response", token: str = "") -> dict:
+    """Valida a resposta da API e devolve o JSON, levantando NotifyError.
+
+    O corpo remoto tambem passa pelo redator: um erro de intermediario (proxy,
+    portal cativo, 502 de gateway) costuma ecoar o URL pedido, e esse URL tem o
+    token dentro.
+    """
     try:
         data = resp.json()
     except ValueError:
@@ -149,9 +194,10 @@ def _handle_response(resp: "requests.Response") -> dict:
         descr = ""
         if isinstance(data, dict):
             descr = data.get("description", "")
+        detalhe = descr if descr else resp.text[:300]
         raise NotifyError(
-            f"Telegram respondeu HTTP {resp.status_code}"
-            + (f": {descr}" if descr else f": {resp.text[:300]}")
+            "Telegram respondeu HTTP %s: %s"
+            % (resp.status_code, _redact(detalhe, token))
         )
     return data
 
@@ -176,6 +222,8 @@ def send_message(text: str, no_emoji: bool = True) -> dict:
     if len(text) > 4096:
         text = text[:4093] + "..."
 
+    erro = None
+    resp = None
     try:
         resp = requests.post(
             _api_url(token, "sendMessage"),
@@ -183,9 +231,11 @@ def send_message(text: str, no_emoji: bool = True) -> dict:
             timeout=HTTP_TIMEOUT,
         )
     except requests.RequestException as exc:
-        raise NotifyError(f"Falha de rede ao enviar mensagem: {exc}") from exc
+        erro = _erro_de_rede(exc, token, "Falha de rede ao enviar mensagem")
+    if erro is not None:
+        raise erro  # fora do except: __context__ fica a None (ver _erro_de_rede)
 
-    return _handle_response(resp)
+    return _handle_response(resp, token)
 
 
 def send_document(path: str, caption: str = "", no_emoji: bool = True) -> dict:
@@ -216,6 +266,8 @@ def send_document(path: str, caption: str = "", no_emoji: bool = True) -> dict:
     if caption:
         data["caption"] = caption
 
+    erro = None
+    resp = None
     try:
         with open(path, "rb") as fh:
             files = {"document": (os.path.basename(path), fh)}
@@ -226,11 +278,13 @@ def send_document(path: str, caption: str = "", no_emoji: bool = True) -> dict:
                 timeout=HTTP_TIMEOUT,
             )
     except requests.RequestException as exc:
-        raise NotifyError(f"Falha de rede ao enviar documento: {exc}") from exc
+        erro = _erro_de_rede(exc, token, "Falha de rede ao enviar documento")
     except OSError as exc:
-        raise NotifyError(f"Falha ao abrir arquivo {path!r}: {exc}") from exc
+        erro = NotifyError("Falha ao abrir arquivo %r: %s" % (path, exc))
+    if erro is not None:
+        raise erro  # fora do except: __context__ fica a None (ver _erro_de_rede)
 
-    return _handle_response(resp)
+    return _handle_response(resp, token)
 
 
 # --------------------------------------------------------------------------- #
