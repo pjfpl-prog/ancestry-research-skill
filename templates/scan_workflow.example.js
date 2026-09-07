@@ -43,14 +43,38 @@ const ALVO = {
 async function listImages(guid) {
   const out = [];
   let from = 0;
+  const seen = new Set();
   let total = null;
   for (;;) {
-    const res = await fetch(`${BASE}/rdigital/${guid}?from=${from}&max=500`);
+    const res = await fetch(`${BASE}/rdigital/${guid}?fromIndex=${from}&max=500`);
     if (!res.ok) throw new Error(`listImages ${guid}: HTTP ${res.status}`);
     const data = await res.json();
-    const page = data.results || [];
-    if (page.length === 0) break;
-    if (total === null && typeof data.total === 'number') total = data.total;
+    // 'from' repetia a primeira pagina; valide o deslocamento e a cobertura real.
+    if (!Number.isSafeInteger(data.fromIndex) || data.fromIndex !== from) {
+      throw new Error('listImages: fromIndex ausente, invalido ou divergente');
+    }
+    if (!Number.isSafeInteger(data.total) || data.total < 0 ||
+        (total !== null && total !== data.total)) {
+      throw new Error('listImages: total invalido ou alterado');
+    }
+    total = data.total;
+    const page = data.results;
+    if (!Array.isArray(page) || from + page.length > total) {
+      throw new Error('listImages: pagina invalida');
+    }
+    if (page.length === 0) {
+      if (from < total) throw new Error('listImages: pagina vazia antes do total');
+      break;
+    }
+    for (const r of page) {
+      if (!r || !['string', 'number'].includes(typeof r.id) || r.id === '' ||
+          (typeof r.id === 'number' && !Number.isSafeInteger(r.id))) {
+        throw new Error('listImages: imagem sem id valido');
+      }
+      const id = String(r.id);
+      if (seen.has(id)) throw new Error('listImages: id repetido');
+      seen.add(id);
+    }
     out.push(...page.map((r) => ({ fileId: r.id, name: r.name })));
     from += page.length;
     if (total !== null && from >= total) break;

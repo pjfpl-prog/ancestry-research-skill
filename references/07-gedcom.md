@@ -15,8 +15,8 @@ Para a skill, o GEDCOM serve a dois propósitos:
    contamina toda a análise a jusante. **Audite antes de confiar.**
 
 Trate o `.ged` como **dado pessoal**: não o versione em repositório público, não o
-cole em logs. (As credenciais que o geraram já vão por variável de ambiente —
-nunca no código.)
+cole em logs. A autenticação deve seguir o fluxo seguro do ambiente, sem segredos
+em argumentos, URLs, comandos ou variáveis/interpolação de shell.
 
 ---
 
@@ -239,7 +239,7 @@ voltar ao ficheiro e decidir. O script **nunca corrige sozinho** — apenas apon
 
 ## 4. Receita rápida
 
-1. Extraia a sua árvore → `arvore.ged` (`getmyancestors`, credenciais por env).
+1. Use o GEDCOM disponibilizado ou uma exportação autorizada por fluxo seguro; ver §5 de `02-familysearch.md`.
 2. **Audite**: `python scripts/gedcom_audit.py arvore.ged` — leia o relatório.
 3. **Limpe o óbvio**: corrija mojibake (com cuidado), remova/sinalize nós-lixo,
    funda duplicados, desfaça loops. Sempre voltando à fonte para datas/ligações.

@@ -91,3 +91,21 @@ def test_filescount_bate_com_o_numero_real_de_imagens(sessao):
     detalhe = digitarq._get_json(sessao, digitarq.DETAILS_URL.format(guid=alvo["id"]),
                                  delay=1.0)
     assert detalhe.get("hasImages") is True, "details discorda da busca"
+
+
+
+def test_images_deslocamento_nao_repete_inicio(sessao):
+    """Duas paginas pequenas numa cota neutra; nao baixa imagens de familias."""
+    import time
+
+    res, _, _ = digitarq.search(sessao, COTA, limit=10, sort="reference_code",
+                               with_images=True, delay=1.0)
+    alvo = next((r for r in res if (r.get("filesCount") or 0) >= 4), None)
+    assert alvo is not None, "nenhum volume suficiente para verificar deslocamento"
+    time.sleep(1)
+    primeira, total = digitarq.list_images(sessao, alvo["id"], start=0, limit=2, delay=1)
+    time.sleep(1)
+    segunda, outro_total = digitarq.list_images(sessao, alvo["id"], start=2, limit=2, delay=1)
+    assert total == outro_total
+    assert len(primeira) == len(segunda) == 2
+    assert {str(r["id"]) for r in primeira}.isdisjoint(str(r["id"]) for r in segunda)

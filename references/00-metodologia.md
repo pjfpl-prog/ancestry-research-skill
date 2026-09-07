@@ -43,17 +43,21 @@ Ter o muro escrito assim faz três coisas:
    datas e cônjuge);
 3. impede de "redescobrir" o que já se sabe.
 
-Regra prática: **um muro de cada vez.** Não disperse por seis linhas ao mesmo tempo.
+Mantenha um alvo explícito por frente. Investigue familiares ou frentes independentes quando
+isso ajudar as perguntas autorizadas; não troque o objetivo por expansão indiscriminada.
 
 ---
 
 ## 3. Hierarquia de fontes
 
-A força de um achado depende da fonte. Da mais forte para a mais fraca:
+Avalie a origem do documento (original ou derivado), a informação de cada campo
+(conhecimento direto ou declaração posterior) e a inferência usada. As categorias abaixo
+orientam a busca; não garantem automaticamente a verdade de todas as afirmações.
 
 ### 3.1 Fonte primária (prova)
-Documento produzido **na época do evento, por quem tinha autoridade/conhecimento direto**.
-É o que prova uma ligação.
+Um documento contemporâneo pode fornecer informação direta de um evento, mas secundária
+sobre outro. Por exemplo, um casamento documenta o casamento e declara o nascimento dos
+noivos; não substitui o assento natal. Avalie informante e contexto antes de confirmar o elo.
 
 - **Assentos paroquiais**: batismo, casamento, óbito (livros da paróquia).
 - **Registo civil** (a partir da sua criação em cada país).
@@ -62,10 +66,10 @@ Documento produzido **na época do evento, por quem tinha autoridade/conheciment
   genealogia de 3-4 gerações — uma fonte primária densíssima quando existe.
 - **Processos** (incl. inquisitoriais) com sessão de genealogia.
 
-> Hierarquia interna: mesmo entre primárias, prefira o documento **mais próximo do
-> evento e por testemunha direta**. Um assento de óbito dá a idade "informada" por um
-> parente (pode errar 5-10 anos); o assento de batismo dá a data real. Para a idade/data
-> de nascimento, o batismo vence o óbito.
+> Prefira informação próxima do evento e de informante qualificado, sem declarar uma
+> fonte infalível. Batismo e nascimento são eventos diferentes; só atribua data natal
+> que o documento efetivamente declare. Idade no óbito é informação para cálculo/estimativa:
+> preserve a idade literal, o método e os valores conflitantes.
 
 ### 3.2 Fonte secundária (pista)
 Compilada **depois**, por terceiros, a partir de outras fontes (que podem estar certas,
@@ -100,14 +104,15 @@ Escolher o tipo de documento certo poupa semanas. O que cada um entrega:
 | Assento | O que nomeia | Valor para quebrar muro |
 |---|---|---|
 | **Casamento** | pais do noivo **E** da noiva + naturalidades dos noivos | **O melhor** — sobe uma geração nos dois lados de uma vez |
-| **Batismo** | pais; por vezes avós/padrinhos; data; às vezes naturalidade do pai | Forte — dá os pais e a data real de nascimento |
+| **Batismo** | pais; por vezes avós/padrinhos; data; às vezes naturalidade do pai | Forte — documenta o batismo e pode declarar a data de nascimento |
 | **Óbito** | filiação, estado civil, cônjuge, idade (aproximada) | Útil — confirma cônjuge e dá idade (para estimar nascimento) |
 | **Habilitação** (ordem/Santo Ofício) | genealogia formal de 3-4 gerações | Excecional quando existe |
 | **Notariais** (testamento, justificação, sesmaria) | filiação, herdeiros, bens, por vezes naturalidade | Bom complemento e desempate |
 
-Regra de ouro: **se o objetivo é subir uma geração, procure primeiro o CASAMENTO** do
-antepassado-muro. Ele nomeia os pais dele e dela e (em geral) de onde cada um era —
-exatamente o que falta no §2.
+Para filiação e naturalidades, o casamento costuma ter alto retorno; ajuste a prioridade
+à pergunta e à cobertura. Para resolver nascimento, busque o próprio registro contemporâneo.
+Para variantes de nomes, correlacione filhos e cônjuges conforme
+[correlação e arquivo](09-correlacao-e-arquivo.md).
 
 ---
 
@@ -152,6 +157,8 @@ eixos independentes — não basta o nome:
 - **Cônjuge** (âncora fortíssima: um casal `Pessoa-A` × `Pessoa-C` é muito mais único
   que um nome sozinho).
 - **Padrinhos / testemunhas / vizinhança** recorrentes entre documentos.
+- **Endereço na época** e avós concordantes ajudam a ligar irmãos e variantes de nomes,
+  mas não bastam isoladamente. Padrinho homônimo do avô não é automaticamente o avô.
 
 Sinais de alerta de homónimo:
 - dois batismos com o mesmo nome na mesma freguesia em poucos anos (pode haver dois
@@ -189,8 +196,10 @@ Regras:
   está acima dela herda essa incerteza.
 - Confiança **não sobe por repetição** numa secundária: dez árvores que se copiaram
   continuam a valer uma pista, não uma prova.
-- Confiança sobe quando uma **segunda fonte primária independente** confirma a mesma
-  ligação.
+- Uma segunda fonte independente concordante pode elevar a confiança; avalie também os
+  conflitos. Segunda via, fotografia, índice e páginas do mesmo ato não são independentes.
+- Registre confiança por afirmação e por vínculo. Diferencie dado declarado, cálculo,
+  hipótese de identidade e fato comprovado; uma transcrição legível não resolve tudo.
 
 ---
 
@@ -198,7 +207,8 @@ Regras:
 
 Separe sempre, no raciocínio e no relatório:
 
-- **DOCUMENTADO** — tem fonte primária citável (§9). É o que entra na árvore como facto.
+- **DOCUMENTADO** — a declaração do documento tem fonte citável (§9); a conclusão
+  genealógica deve indicar se está comprovada, declarada, calculada ou ainda em hipótese.
 - **TRADIÇÃO / LENDA** — origem nobre, descendência de figura famosa, raiz
   sefardita/bíblica "de família", "veio de tal país". Pode ser ponto de partida de
   busca, mas só vira facto se uma primária a sustentar. Até lá, fica numa secção à parte
@@ -231,13 +241,13 @@ ACHADO
 ```
 
 Diretrizes de citação:
-- A **cota/reference code é obrigatória** — é o que permite a verificação. Para paróquias
-  portuguesas, o padrão é `PT/TT/PRQ/<cód-paróquia>/<série>/<livro>` (série 001=batismos,
-  002=casamentos, 003=óbitos, 004=mistos).
-- Guarde também o **identificador digital** (`{GUID}` do documento, `<ARK>`, ou `{fileId}`
-  da imagem) e, de preferência, o **recorte da imagem** — para não depender do link viver.
-- **Transcreva o trecho que prova a ligação**, não só "confirmado". A transcrição é a
-  prova; o resto é leitura sua.
+- Copie a **cota/reference code disponível** e identifique instituição e jurisdição.
+  `PT/TT/PRQ/...` é exemplo da Torre do Tombo, não prefixo universal. Não invente cota:
+  se ausente, marque a lacuna e use ARK/GUID, livro/folha/termo e metadados disponíveis.
+- Guarde o **identificador digital** e a imagem integral disponibilizada, com continuação,
+  verso e margens relevantes. Recortes são derivados; não substituem a imagem de origem.
+- **Transcreva o trecho que sustenta a ligação**, não só "confirmado". O documento é a
+  fonte; a transcrição e a justificativa permitem auditar a leitura e a inferência.
 
 ---
 

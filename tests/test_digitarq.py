@@ -230,10 +230,95 @@ def test_jpeg_valido_e_gravado(monkeypatch, tmp_path, capsys):
 # --------------------------------------------------------------------------- #
 def test_images_pagina_alem_de_500(monkeypatch):
     def fake(session, url, params=None, delay=0):
-        inicio = int((params or {}).get("from", 0))
+        inicio = int((params or {}).get("fromIndex", 0))
         fim = min(inicio + 500, 1200)
-        return {"total": 1200,
+        return {"fromIndex": inicio, "total": 1200,
                 "results": [{"id": i, "name": "m%04d.jpg" % i} for i in range(inicio, fim)]}
     monkeypatch.setattr(digitarq, "_get_json", fake)
     imgs, total = digitarq.list_images(None, "guid", delay=0)
     assert total == 1200 and len(imgs) == 1200, "livro grande nao pode perder o fim"
+
+
+
+@pytest.mark.parametrize("offset", [None, -1, True, 1.5, "incerto", 0])
+def test_images_recusa_offset_ausente_invalido_ou_ignorado(monkeypatch, offset):
+    def fake(*args, **kwargs):
+        return {"fromIndex": offset, "total": 10, "results": [{"id": "x"}]}
+    monkeypatch.setattr(digitarq, "_get_json", fake)
+    with pytest.raises(digitarq.DigitarqError):
+        digitarq.list_images(None, "guid", start=5, limit=1, delay=0)
+
+
+def test_images_lote_parcial_avanca_pela_quantidade_recebida(monkeypatch):
+    pedidos = []
+
+    def fake(session, url, params=None, delay=0):
+        pedidos.append(params)
+        inicio = params["fromIndex"]
+        quantidade = min(2, params["max"], 10 - inicio)
+        return {"fromIndex": inicio, "total": 10,
+                "results": [{"id": i} for i in range(inicio, inicio + quantidade)]}
+    monkeypatch.setattr(digitarq, "_get_json", fake)
+    imgs, total = digitarq.list_images(None, "guid", start=3, limit=5, delay=0)
+    assert [i["id"] for i in imgs] == [3, 4, 5, 6, 7]
+    assert total == 10
+    assert [p["fromIndex"] for p in pedidos] == [3, 5, 7]
+    assert [p["max"] for p in pedidos] == [5, 3, 1]
+    assert all("from" not in p for p in pedidos)
+
+
+@pytest.mark.parametrize("modo", ["repetidos", "vazia", "total_alterado", "sem_id"])
+def test_images_contrato_incompleto_nao_vira_cobertura(monkeypatch, modo):
+    chamadas = []
+
+    def fake(session, url, params=None, delay=0):
+        offset = params["fromIndex"]
+        chamadas.append(offset)
+        if offset == 0:
+            return {"fromIndex": 0, "total": 4, "results": [{"id": "a"}, {"id": "b"}]}
+        results = [{"id": "a"}] if modo == "repetidos" else (
+            [] if modo == "vazia" else [{"name": "sem id"}] if modo == "sem_id"
+            else [{"id": "c"}])
+        return {"fromIndex": offset, "total": 5 if modo == "total_alterado" else 4,
+                "results": results}
+    monkeypatch.setattr(digitarq, "_get_json", fake)
+    with pytest.raises(digitarq.DigitarqError):
+        digitarq.list_images(None, "guid", delay=0)
+    assert chamadas == [0, 2]
+
+
+def test_images_cli_nao_emite_json_parcial_em_erro(monkeypatch, capsys):
+    def fake(session, url, params=None, delay=0):
+        return {"fromIndex": 0, "total": 2, "results": [{"id": 1}]}
+    monkeypatch.setattr(digitarq, "_get_json", fake)
+    assert digitarq.main(["images", "guid", "--json", "--delay", "0"]) == 1
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert "fromIndex" in output.err
+
+
+def test_images_cli_preserva_inicio_do_lote(monkeypatch, capsys):
+    import json
+
+    def fake(session, url, params=None, delay=0):
+        return {"fromIndex": 5, "total": 10, "results": [{"id": 6}]}
+    monkeypatch.setattr(digitarq, "_get_json", fake)
+    assert digitarq.main(["images", "guid", "--start", "5", "--max", "1", "--json"]) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output == {"fromIndex": 5, "total": 10, "returned": 1, "results": [{"id": 6}]}
+
+
+@pytest.mark.parametrize("start, limit", [(-1, 1), (0, 0), (0, -1)])
+def test_images_valida_limites_antes_de_contactar_rede(monkeypatch, start, limit):
+    def fake(*args, **kwargs):
+        pytest.fail("nao deve contactar rede")
+    monkeypatch.setattr(digitarq, "_get_json", fake)
+    with pytest.raises(digitarq.DigitarqError):
+        digitarq.list_images(None, "guid", start=start, limit=limit)
+
+
+def test_images_lote_vazio_apos_fim_preserva_total(monkeypatch):
+    def fake(*args, **kwargs):
+        return {"fromIndex": 8, "total": 5, "results": []}
+    monkeypatch.setattr(digitarq, "_get_json", fake)
+    assert digitarq.list_images(None, "guid", start=8, delay=0) == ([], 5)

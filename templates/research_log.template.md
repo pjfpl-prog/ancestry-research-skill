@@ -1,88 +1,80 @@
-# Diario de Pesquisa Genealogica
+# Diário de pesquisa genealógica
 
-> **Documentado vs. Lenda — leia antes de preencher.**
-> Toda linha deste diario e ou um fato **DOCUMENTADO** (tem fonte verificavel:
-> cota do arquivo, GUID, ARK ou URL) ou **TRADICAO/LENDA** (ouvido, herdado,
-> sem documento). Nunca misture os dois. Regras de ouro:
-> - Sem fonte = nao e fato. Marque como TRADICAO ate documentar.
-> - Use `[?]` em qualquer leitura paleografica/transcricao incerta.
-> - Homonimo **nao** e prova. Sinalize e siga procurando o desambiguador
->   (naturalidade, nomes dos pais, janela de anos).
-> - NUNCA invente nome, data ou cota. A verificacao final e sempre humana.
+Adapte ao diário já usado pelo projeto. Use somente os campos pertinentes, mantendo
+a distinção entre fonte, declaração, inferência e identidade. Não inclua dados reais
+de pesquisa na própria skill.
 
----
+## Alvo e pergunta
 
-## Identificacao do alvo
+- Pessoa-foco e variantes:
+- O que falta:
+- Âncoras já conhecidas e fontes:
+- Período/lugares da busca (distinguir fato de hipótese operacional):
+- Documento com maior chance de responder:
 
-- **Objetivo desta linha de pesquisa:** (ex.: subir uma geracao acima de FULANO; quebrar o muro em LUGAR)
-- **Pessoa-foco:** TERMO
-- **Janela de anos plausivel:** AAAA-AAAA
-- **Lugares candidatos (naturalidade):** LUGAR_1; LUGAR_2
-- **Variantes de grafia do apelido a vigiar:** (a grafia mudava; liste todas)
-- **Hipotese a testar:** (frase curta, falseavel)
+## Consulta e cobertura
 
----
+| Data | Fonte/coleção | Consulta e filtros aplicados | Total / retornados | Itens ou imagens examinados | Resultado e limite | Próximo passo |
+|---|---|---|---|---|---|---|
+| | | | | | | |
 
-## Tabela de achados
+Diferencie índice/OCR, catálogo e leitura de imagens. Registre paginas restantes,
+falhas e trechos ilegíveis. Não chamar resposta parcial ou falta de acesso de busca
+esgotada. Negativa só vale para o recorte efetivamente examinado.
 
-Um achado por linha. Repita a tabela por sessao/data se preferir.
+## Fonte e arquivo recebido
 
-| # | Achado (o que diz) | Tipo | Data do assento | Fonte (cota / GUID / ARK / URL) | Transcricao (literal, com `[?]`) | Confianca (alta/media/baixa) | Homonimo? | Documentado ou Lenda | Proximo passo |
-|---|--------------------|------|-----------------|---------------------------------|----------------------------------|------------------------------|-----------|----------------------|---------------|
-| 1 |                    |      |                 |                                 |                                  |                              | nao       | DOCUMENTADO          |               |
-| 2 |                    |      |                 |                                 |                                  |                              | sim [?]   | DOCUMENTADO          |               |
-| 3 |                    |      |                 |                                 |                                  |                              |           | TRADICAO             |               |
+- ID de fonte:
+- Instituição e jurisdição no ato:
+- Tipo e cota disponível:
+- Livro, folha (frente/verso), termo; retificação marginal:
+- ARK de índice / ARK de imagem / GUID / fileId:
+- Filme/grupo, item e número da imagem:
+- Data do evento / data da lavratura / data da emissão:
+- Caminho do original, nome recebido, tamanho e SHA-256:
+- Condições de reprodução/licença publicadas pela fonte:
+- Páginas/continuações preservadas:
+- Caminhos de transcrição, metadados e derivados:
+- Relação com fonte anterior (mesmo ato, segunda via, índice, declaração independente):
+- Se correspondência: data, remetente, assunto, ID e excerto genealógico sem links de autenticação.
 
-**Legenda dos campos**
-- **Tipo:** baptismo (001) / casamento (002) / obito (003) / misto (004) / habilitacao / notarial.
-  Lembre: **casamento** nomeia os pais do noivo E da noiva + naturalidades (melhor para subir geracao);
-  **batismo** nomeia pais (as vezes avos/padrinhos); **obito** traz filiacao, estado civil, conjuge, idade;
-  **habilitacoes** (Ordem militar / Familiar do Santo Oficio) trazem genealogia de 3-4 geracoes.
-- **Fonte:** seja preciso e reproduzivel. Exemplos de formato:
-  - DigitArq: `referenceCode` (ex.: `PT/TT/PRQ/<cod-paroquia>/002/<livro>`) + `GUID` + `fileId` + URL da imagem.
-  - FamilySearch: ARK (`/ark:/61903/<ARK>` — `1:1:` = indexado, `3:1:` = imagem).
-  - Sempre que possivel, anote tambem o **folio** (ex.: `fl. 23v`).
-- **Transcricao:** copie o trecho como esta escrito; `[?]` onde nao tem certeza; nao "modernize" sem nota.
-- **Confianca:** alta = legivel e contexto bate; media = legivel mas contexto incompleto; baixa = leitura duvidosa.
-- **Homonimo?:** `sim` se o nome bate mas o contexto diverge; descreva o conflito na coluna "Achado".
+Campo desconhecido fica identificado como lacuna; nunca preencher cota/data por suposição.
+Uma captura de tela não deve ser descrita como imagem integral baixada.
 
----
+## Leitura e avaliação
 
-## Muros / becos (o que NAO foi encontrado)
+**Transcrição literal do trecho relevante:** (marcar `[?]`; indicar se parcial)
 
-Registrar negativas tambem economiza tempo futuro.
+**Normalização separada:**
 
-| Muro | Onde ja procurei (cota/GUID/URL) | O que faltou | Proxima fonte a tentar |
-|------|----------------------------------|--------------|------------------------|
-|      |                                  |              |                        |
+| Afirmação ou vínculo | O documento declara | Estado | Confiança e motivo | Conflito / fonte dependente |
+|---|---|---|---|---|
+| | | | | |
 
-Ideias de proximas fontes quando um livro nao tem o assento:
-- Outro tipo de assento na mesma freguesia (se nao achou no batismo, tente casamento/obito).
-- Freguesias vizinhas / paroquia de onde veio o conjuge (naturalidade cruzada).
-- Notariais (testamentos, justificacoes, sesmarias): filiacao e bens.
-- Habilitacoes (Ordem / Santo Oficio): genealogia de varias geracoes de uma vez.
-- Brasil colonial: AHU / Projeto Resgate; registo civil e paroquial no FamilySearch.
-- Hemerotecas: memoria.bn.br (Brasil) e hemerotecadigital.bnportugal.gov.pt (Portugal).
+Estados: comprovado, declarado, calculado, hipótese, tradição, candidato excluído.
+Para nascimento calculado de idade, manter idade literal, data-base e método/intervalo.
+Proximidade ao evento, informante e independência importam tanto quanto legibilidade.
 
----
+## Correlação de identidade
 
-## Notas de Inquisicao / cristao-novo (preencher so se aplicavel)
+| Pessoa candidata | Pais/avós | Cônjuge | Datas/lugares | Endereço/testemunhas | Fontes | Avaliação |
+|---|---|---|---|---|---|---|
+| | | | | | | |
 
-A marca "cristao-novo" aparece na **capa do maco** (abreviada "Xao novo" = christao novo)
-e na **ficha do arquivo** ("Estatuto social: cristao-novo / parte de... / meio... / da nacao").
-A ascendencia e rastreada na **sessao de genealogia / in genere** (pais, avos, bisavos,
-dizendo de cada um se foi penitenciado). Nao existe "nome judeu" registado, salvo confissao
-ou fuga para o estrangeiro. Trate qualquer salto para "origem biblica/lendaria" como **TRADICAO**
-ate haver documento.
+- Âncoras concordantes:
+- Contradições ou campos ausentes:
+- Hipóteses alternativas / candidato excluído e razão:
+- Próximo documento capaz de resolver:
+- Mudança de confiança em relação à avaliação anterior, com justificativa:
 
----
+Nome/endereço isolado não é identidade; padrinho não é automaticamente parente.
+Preserve grafias e divergências mesmo quando a correlação ficar forte.
 
-## Verificacao final (humana)
+## Conferência e balanço
 
-- [ ] Cada linha "DOCUMENTADO" tem fonte conferida (abri a imagem/registo eu mesmo).
-- [ ] Nenhum homonimo foi promovido a prova.
-- [ ] Transcricoes incertas estao marcadas com `[?]`.
-- [ ] As linhas "TRADICAO" estao claramente separadas das "DOCUMENTADO".
-- [ ] Nada de nome/data/cota inventado.
-
-**Conferido por:** ____________  **Data:** AAAA-MM-DD
+- Imagem e continuação conferidas; transcrição incerta marcada.
+- Originais preservados; derivados identificados; citações reencontráveis.
+- Diferenciar arquivos novos, atos, eventos, vínculos e reproduções do mesmo ato.
+- Árvore/síntese/índice atualizados sem apagar evidência contraditória.
+- Se houver pacote: manifesto, hashes, CRC e referências internas conferidos.
+- Se houver entrega autorizada: distinguir preparado, enviado e efetivamente lido.

@@ -209,7 +209,7 @@ Razões:
 3. **Listar as imagens** do processo e baixar a(s) da **capa** (marca "Xão novo") e da
    **sessão de genealogia**:
    ```
-   GET https://digitarq.arquivos.pt/rdigital/{GUID}?from=0&max=500
+   GET https://digitarq.arquivos.pt/rdigital/{GUID}?fromIndex=0&max=500
    GET https://digitarq.arquivos.pt/rdigital/dissemination?fileId=N
    ```
 4. **Ler em paleografia** (ampliar/recortar — `03-paleografia.md`) pais → avós → bisavós,

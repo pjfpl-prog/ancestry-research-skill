@@ -25,8 +25,8 @@ Um conjunto de instruções (`SKILL.md`), documentos de referência, *scripts* u
 - **Distinguir** o que está **documentado** (com fonte e cota) do que é **tradição/lenda**.
 - **Registar** achados com nível de confiança, marcando leituras incertas e homónimos.
 
-A skill é pensada para trabalho **multi-agente**: quando um livro não está indexado por nome,
-as imagens podem ser divididas em lotes entre subagentes que varrem página a página.
+Quando houver delegação permitida, divida livros pertinentes em lotes entre subagentes;
+caso contrário, use o mesmo protocolo localmente. Conte a carga conjunta sobre o arquivo.
 
 ## Para quem
 
@@ -41,8 +41,8 @@ agente a usar as suas próprias contas de arquivo.
 - **DigitArq / Arquivo Nacional Torre do Tombo** (Portugal) — busca e detalhe via API pública,
   **sem login**; registos paroquiais, processos da Inquisição, notariais.
 - **FamilySearch** — busca de texto completo (OCR/IA), registos indexados e catálogo
-  (requer **a conta do próprio utilizador**); extração de árvore para GEDCOM com a ferramenta
-  open-source `getmyancestors`.
+  (sessão autorizada, conforme a coleção); exportação GEDCOM é opcional e depende de
+  ferramenta e autenticação compatíveis, não sendo requisito de pesquisa.
 - **AHU (Arquivo Histórico Ultramarino) / Projeto Resgate** — Brasil colonial.
 - **Arquivos Distritais** (AD…) e registo civil/paroquial brasileiro.
 - **Hemerotecas digitais** — Biblioteca Nacional (Brasil) e Biblioteca Nacional de Portugal.
@@ -124,23 +124,12 @@ no FamilySearch: a extração da árvore é feita pela ferramenta externa `getmy
 a senha interativamente. Não passe a senha em argumento de linha de comando (fica visível na
 lista de processos da máquina). Ver `references/02-familysearch.md`.
 
-Exemplo (Linux/macOS) — tudo opcional, o DigitArq funciona sem nada disto:
+Use a entrada mascarada/gestor protegido do ambiente para a configuração sensível;
+não cole credenciais no chat, em comandos, URLs, argumentos ou logs. Não execute o
+notificador se a integração não oferecer um fluxo seguro. Uma conta FamilySearch
+autorizada não elimina as restrições de uma coleção nem concede acesso à API.
+Veja [o guia de acesso e exportação](references/02-familysearch.md).
 
-```bash
-export NOTIFY_TELEGRAM_TOKEN="<token-do-seu-bot>"
-export NOTIFY_TELEGRAM_CHAT="<o-seu-chat-id>"
-```
-
-Exemplo (Windows / PowerShell):
-
-```powershell
-$env:NOTIFY_TELEGRAM_TOKEN = "<token-do-seu-bot>"
-$env:NOTIFY_TELEGRAM_CHAT  = "<o-seu-chat-id>"
-```
-
-> **Regras de segredo:** nunca cometa senhas, tokens ou IDs no Git. Não escreva credenciais em
-> ficheiros versionados. Se usar um `.env` local, garanta que está no `.gitignore`. As contas do
-> FamilySearch são **suas** — a skill apenas as utiliza em seu nome, respeitando os termos do serviço.
 
 ---
 
@@ -201,8 +190,8 @@ ancestry-research-skill/
 - **Distinga o documentado da lenda.** Toda afirmação deve ter fonte e cota; o que é tradição
   oral ou hipótese tem de ser rotulado como tal. Marque leituras paleográficas incertas com
   `[?]`. **Nunca invente** nomes, datas ou cotas. **Nunca apresente um homónimo como prova.**
-- **A verificação final é humana.** A skill acelera a busca e a leitura, mas a confirmação de
-  cada elo da linhagem cabe ao utilizador.
+- **Permita revisão humana.** Entregue imagem, transcrição e justificativa de cada elo;
+  isso não exige interromper cada atualização local que o utilizador já autorizou.
 - **Direitos de imagem.** As imagens de documentos pertencem aos arquivos de origem; respeite
   as condições de reprodução e atribuição de cada instituição.
 
@@ -229,3 +218,37 @@ Contribuições são bem-vindas: novas fontes/arquivos, melhorias de paleografia
 robustos. **Regra inquebrável:** nenhuma contribuição pode incluir dados pessoais reais,
 genealogias de famílias específicas ou credenciais. Use sempre placeholders (`{GUID}`,
 `{fileId}`, `TERMO`, `<ARK>`) ou registos públicos neutros nos exemplos.
+
+## Integração dos aprendizados de pesquisa — 07/09/2026
+
+Esta revisão parte das melhorias do autor em paginação de busca, `filesCount`, downloads,
+auditoria GEDCOM, redacção de tokens, dependências opcionais e CI. Mantém essas
+implementações e os seus testes; não repõe cópias antigas dos scripts.
+
+- **Imagens DigitArq:** corrige o deslocamento para `fromIndex`, acrescenta `--start`
+  sem alterar a enumeração completa por omissão e recusa respostas com índice errado,
+  total alterado, IDs repetidos ou fim prematuro. O template JavaScript usa a mesma
+  verificação; o teste live acrescenta duas páginas pequenas e não sobrepostas.
+- **[Correlação e arquivo](references/09-correlacao-e-arquivo.md):** filiação cruzada de
+  irmãos/cônjuges, nomes alternativos, datas declaradas versus calculadas, fontes
+  dependentes, entrevistas não indutivas, originais com hashes e entrega verificável.
+- **[Imigração Portugal–Brasil](references/10-imigracao-portugal-brasil.md):** distingue
+  passaporte, embarque, chegada e recadastramento; pesquisa prontuários sem presumir
+  custódia, viagens conjuntas ou existência do documento.
+- **[Inventários](references/11-inventarios-e-certidoes-anexas.md):** leitura dos anexos
+  tardios, certidões de batismo e emancipações, com contagem separada de imagens
+  arquivadas e lidas e prova explícita dos vínculos.
+- **[Gramps e visuais](references/12-gramps-e-arvores-visuais.md):** migração validada por
+  reexportação, armazenamento persistente, primeiro acesso privado, atualizações por IDs,
+  notas de pesquisa por pessoa e árvores que preservam incerteza e candidatos.
+- **[FamilySearch](references/02-familysearch.md):** fontes vinculadas, filtros
+  progressivos e requisitos conjuntos no Full-Text; download integral versus captura;
+  login, elegibilidade da aplicação, escopo de API e restrição de imagem são estados
+  distintos. A documentação não promete uma conexão ou exportação não validada.
+- **Manutenção:** guia principal compacto e diário com cobertura, proveniência,
+  conflitos e próximo passo. Apenas procedimentos genéricos: nenhum documento,
+  identificador familiar, contato pessoal ou credencial foi incorporado.
+
+Para validar: `ruff check scripts tests` e `pytest -q`. O teste de contrato na rede
+continua opcional (`DIGITARQ_LIVE=1 pytest -q -m live`), fora do CI, com pausas e
+amostra neutra. Os testes offline geram os seus próprios dados temporários.

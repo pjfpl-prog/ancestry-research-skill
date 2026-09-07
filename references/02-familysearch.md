@@ -4,10 +4,11 @@ FamilySearch (familysearch.org) é o maior acervo gratuito de genealogia do mund
 Igreja SUD. Tem bilhões de registos indexados, milhões de imagens digitalizadas de livros
 paroquiais e civis, e uma camada recente de **busca por texto completo via OCR/IA**.
 
-> **Login obrigatório.** Quase tudo de útil (registos indexados, imagens, catálogo, full-text)
-> exige conta. A conta é **gratuita**. A skill **nunca** guarda credenciais: o utilizador põe as
-> dele via variáveis de ambiente / sessão de browser. Não há API pública com chave para o público
-> geral — o acesso prático é via a sessão autenticada no browser do próprio utilizador.
+> **Sessão autorizada.** O acesso depende do conteúdo e da conta. Quando o usuário
+> autorizar a sessão existente, descubra os perfis e abas disponíveis; não assuma um
+> nome de perfil nem repita um diagnóstico antigo de login indisponível. O usuário faz
+> login no próprio site. Não extraia cookies, senhas, códigos ou links de autenticação.
+> Use controles observados e respeite as restrições das coleções.
 
 ---
 
@@ -44,6 +45,15 @@ Dicas:
   Pesquisar por `q.spouseSurname` é uma forma poderosa de cruzar um casal.
 - Resultados podem ser filtrados por coleção depois de carregar (facetas à esquerda).
 - Nem tudo indexado tem imagem; e nem tudo imageado está indexado (ver §1.2).
+- Quando já houver árvore acessível, abra fontes vinculadas e sugestões dos perfis do
+  alvo, pais e irmãos antes de buscas amplas. Fonte anexada ao pai pode documentar apenas
+  o casamento do filho; a anexação não comprova todos os campos do perfil.
+- Faça buscas progressivas: grafias e nomes compostos; casal/conjugação de pais; somente
+  os pais, sem nome do filho. Retire "exact", data e local um de cada vez e registre o efeito.
+  Naturalidade, prenome e ano podem estar indexados incorretamente; uma busca muito restrita
+  pode excluir a própria família.
+- Se há registro tardio, procure também o contemporâneo no lugar de nascimento. Não
+  confunda a data ou o local de lavratura com os do evento.
 
 ### 1.2 Texto completo (OCR/IA) — `/search/full-text/results`
 
@@ -58,8 +68,15 @@ https://www.familysearch.org/search/full-text/results?q.text="FRASE EXATA"
 - Combine termos do jargão de assento (ver §4) com nomes: `q.text="testamento de TERMO"`.
 - A IA comete erros de leitura paleográfica — varie a grafia (acentos, abreviaturas, nomes
   devocionais como "da Conceição"/"de Jesus"/"dos Santos").
-- Cada resultado aponta para a imagem e ao excerto onde o termo apareceu. **Sempre abrir a imagem
-  e confirmar** — o OCR é pista, não prova.
+- Cada resultado aponta para imagem/excerto. **Abra a imagem e confirme**: OCR é pista,
+  não prova. Dois nomes podem estar em notícias ou termos distintos na mesma página.
+- Quando nomes forem requisitos conjuntos, prefixe cada termo/frase por `+`, como
+  `+"NOME DO PAI" +"NOME DO FILHO"`, e confira a consulta e o total na interface.
+  Frases apenas separadas por espaços podem ampliar a busca; não presuma interseção.
+- Compare leitura automática com cabeçalho, número do termo e retificações; não corrija
+  silenciosamente um índice. Cite o índice errado e a leitura manuscrita com a fonte.
+- Restrinja por coleção/grupo de imagens quando conhecido; se não houver resultado,
+  varie grafias e termos. Ausência no OCR não equivale a varredura integral do livro.
 
 ### 1.3 Catálogo — `/search/catalog/results`
 
@@ -71,8 +88,10 @@ https://www.familysearch.org/search/catalog/results?q.placeName=LUGAR
 
 - Pesquisar pelo nome do lugar **na época** (concelho/freguesia em Portugal; município/distrito no
   Brasil) revela coleções de registos paroquiais, civis, notariais, etc.
-- Cada entrada do catálogo lista os filmes/livros, com indicação se têm imagens online, se estão
-  restritos, ou se só existem em microfilme/centro de história familiar.
+- Cada entrada lista filmes/livros e condições de acesso. Consulte também as páginas
+  seguintes das notas digitais; leia tipos e datas por volume, não apenas a faixa da coleção.
+- Copie jurisdição histórica, livro, filme/DGS/grupo de imagens, item e referência do catálogo.
+  Se faltar um ano numa entrada, registre essa lacuna sem concluir ausência no município.
 
 ---
 
@@ -138,65 +157,56 @@ Reforço rápido (detalhe completo no guia de tipos de assento):
 
 ---
 
-## 5. Extrair a SUA árvore para GEDCOM — `getmyancestors`
+## 5. Guardar imagens e, quando pertinente, GEDCOM
 
-Para puxar a árvore que o **próprio utilizador** já tem no FamilySearch para um ficheiro local
-(`.ged`), use a ferramenta open-source **getmyancestors**.
+Para documentos, use o download oferecido pela interface e confirme que o arquivo recebido
+é a imagem integral esperada. Preserve também as páginas de continuação, verso e margens.
+Se Download abrir opções, selecione **JPG Only** para preservar a imagem sem destaques
+da interface e confirme no botão final do diálogo. Verifique o formato real do arquivo:
+a extensão escolhida para salvá-lo não prova que seja JPEG. Uma exportação PDF com
+realces/citação fica separada como derivado, não como nova reprodução independente.
+Se só houver captura de tela, identifique-a assim e registre a limitação.
 
-- Pacote Python, instalável via `pip`. Projeto open-source (no PyPI / GitHub).
-- Usa o **login do próprio utilizador** — não há API key. A autenticação é a sessão pessoal do
-  utilizador na sua própria conta.
-- Exporta a ascendência/descendência a partir de uma pessoa-raiz para **GEDCOM**, que depois se
-  abre em qualquer software de genealogia (Gramps, etc.) ou se processa por script.
+Cite ARK de índice e de imagem, grupo/filme, número da imagem, livro, folha e termo quando
+disponíveis. Posição no visualizador não é fólio. Mantenha as correções marginais e a
+distinção entre ato original, segunda via e índice; veja
+[correlação e arquivo](09-correlacao-e-arquivo.md).
 
-Instalação e uso (esqueleto — sem credenciais embutidas):
+Exportar GEDCOM é opcional. Só investigue a exportação se servir ao pedido e houver fluxo
+de autenticação compatível com o ambiente. A ferramenta externa `getmyancestors` é uma
+possibilidade histórica a verificar, não um caminho validado por estas rodadas. Não assuma
+interface, acesso ou compatibilidade atuais. Nunca ponha senha em argumentos, comandos,
+URLs ou variáveis/interpolação de shell; use a sessão autorizada ou entrada mascarada
+suportada pelo ambiente. Se não houver exportação segura, continue a pesquisa documental.
 
-```bash
-pip install getmyancestors
+Para uma avaliação autorizada de `getmyancestors`, preserve o isolamento de dependências
+em `scripts/requirements-familysearch.txt` e confirme as flags da versão instalada.
+A utilização da própria conta não autoriza recolha automatizada em massa: confira os
+[termos vigentes](https://www.familysearch.org/legal/terms) e o escopo permitido.
 
-# Exporta a partir de uma pessoa-raiz (PID = identificador FamilySearch, ex. XXXX-XXX).
-# Passe SO o utilizador: a senha e pedida interativamente e nao fica em lado nenhum.
-getmyancestors \
-  --username "o_seu_utilizador" \
-  --individual {PID_RAIZ} \
-  --out arvore.ged
-```
-
-> ⚠️ **Não passe a senha em `--password`.** Argumentos de linha de comando são visíveis
-> na lista de processos da máquina (`ps`, Gestor de Tarefas, `wmic`) para qualquer outro
-> processo do mesmo utilizador, e costumam ficar no histórico da shell. Variável de ambiente
-> não resolve isto: o problema é o argumento, não a origem do valor. Deixe a ferramenta pedir
-> a senha.
->
-> ⚠️ **Confirme as flags na versão que instalou** (`getmyancestors --help`) antes de copiar
-> qualquer receita, esta incluída. Os nomes das opções mudaram entre versões (a opção de
-> gerações de ascendência já apareceu como `--ascend` e como `--ascendancy`); uma receita
-> desatualizada falha com "unrecognized arguments", não com um erro claro.
->
-> ⚠️ **Termos de uso.** O FamilySearch restringe recolha automatizada e descarregamento
-> em massa. Usar a sua própria conta não é autorização para varrer o acervo: exporte a **sua**
-> árvore, em volume razoável, e leia os termos antes de automatizar mais do que isso.
-
-Notas:
-- A senha é pedida pela própria ferramenta; **nunca** a escreva no código nem num argumento, e
-  nunca a commite. Trate `.ged` como dado pessoal (não versionar em repositório público).
-- A ferramenta extrai **a árvore do utilizador** — só puxa o que a conta dele já tem acesso/inseriu;
-  não é um scraper geral do acervo.
-- Depois de ter o GEDCOM, processe-o localmente (parsing por script, deduplicação, deteção de
-  "muros" = pessoas sem pais conhecidos) para planear que assentos procurar a seguir.
+Quando houver GEDCOM pertinente, audite a cópia local com `scripts/gedcom_audit.py`.
+Arquivo exportado não torna as relações da árvore automaticamente comprovadas. Detalhes:
+[GEDCOM](07-gedcom.md).
 
 ---
 
 ## 6. Limitações e armadilhas
 
-- **Login obrigatório** em tudo de prático. Sem sessão autenticada, as buscas retornam pouco ou
-  nada. A skill assume que o utilizador autentica no seu próprio browser/sessão.
-- **Sem API pública com chave** para o público geral. O acesso programático fiável é via a sessão
-  já autenticada (browser). Não codifique fluxos que dependam de uma API key inexistente.
-- **Imagens em deepzoom** — o visualizador serve as imagens em tiles (mosaicos) com zoom
-  progressivo, o que torna a **raspagem direta difícil**: não há um JPEG único e simples por URL
-  como nalguns arquivos (contraste com o DigitArq, que serve o JPEG inteiro por `fileId`). Para ler,
-  prefira o download/print oferecido pela própria interface quando disponível.
+- **Acesso variável.** Se houver exigência de login ou restrição de coleção, registre-a como
+  limite de acesso, não como resultado negativo da pesquisa.
+- **API oficial e elegibilidade.** Antes de configurar uma integração, leia o portal
+  [oficial](https://developers.familysearch.org/), o formulário de inscrição que ele liga
+  e os critérios vigentes. Existência de API, gratuidade e login no site não significam
+  acesso automático para um projeto pessoal. Confira aprovação da aplicação, ambiente
+  habilitado e autenticação OAuth suportada antes de declarar uma conexão ativa.
+- **Escopo da API.** Distinga leitura de pessoas/relações/fontes de pesquisa em registros
+  históricos e Full-Text. Não deduza disponibilidade por uma página promocional ou um
+  exemplo antigo. Se o formulário atual restringir o caso ou divergir dos guias, registre
+  a limitação e consulte o suporte oficial; não invente organização, escala ou finalidade
+  para obter aprovação. A API não remove as restrições de acesso às imagens.
+- **Visualizador e downloads.** A visualização pode usar mosaicos, mas algumas imagens têm
+  download integral pela interface. Verifique a opção disponível, sem extrair sessão nem
+  inventar URLs de mídia. Não confunda captura de tela com o arquivo integral.
 - **Restrições de acesso** — algumas coleções estão limitadas (por contrato com o arquivo de
   origem) a centros de história familiar ou bloqueadas em certas regiões. O catálogo indica isso.
 - **OCR/índice falham** — nomes mal lidos, datas trocadas, homónimos. Tratar todo resultado como
@@ -212,7 +222,7 @@ Notas:
 2. **Indexados** (`/search/record`): há índice por nome? Buscar a pessoa, e o casamento dela.
 3. **Full-text** (`/search/full-text`): livro sem índice, ou menção solta? Buscar frase + nome.
 4. Saltar de `1:1:` (indexado) para `3:1:` (imagem) e **ler o assento original**.
-5. Para a árvore própria: `getmyancestors` → GEDCOM (credenciais por env, ficheiro tratado como
-   dado pessoal).
+5. Preserve imagens integrais, citações e transcrições. GEDCOM só se pertinente e com
+   autenticação segura; não é requisito para obter documentos.
 6. Cruzar com a Torre do Tombo/DigitArq (`01-portugal-torre-do-tombo-digitarq.md`), Arquivos Distritais, AHU e hemerotecas
    para o que o FamilySearch não cobre.

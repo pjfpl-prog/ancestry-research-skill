@@ -436,28 +436,66 @@ def cmd_details(args):
 # --------------------------------------------------------------------------- #
 # Subcomando: images
 # --------------------------------------------------------------------------- #
-def list_images(session, guid, limit=None, delay=DEFAULT_DELAY):
+def _image_integer(value, field):
+    # bool e float passam em int(), mas nao sao posicoes inteiras do contrato.
+    if isinstance(value, bool) or not (
+        isinstance(value, int) or
+        (isinstance(value, str) and value.isascii() and value.isdigit())
+    ):
+        raise DigitarqError("campo de imagens %s ausente ou invalido" % field)
+    result = int(value)
+    if result < 0:
+        raise DigitarqError("campo de imagens %s negativo" % field)
+    return result
+
+
+def list_images(session, guid, limit=None, delay=DEFAULT_DELAY, start=0):
     """
-    Lista as imagens de um documento, paginando ate ao `total` que o proprio
-    endpoint declara. A versao anterior pedia `max=500` e parava ali: livros
-    maiores perdiam o fim em silencio.
+    Enumera imagens a partir de start (base zero), validando cada pagina.
+    'from' era ignorado pelo servidor e repetia o inicio; fromIndex e o
+    deslocamento verificado em 07/09/2026. Uma lista repetida nao e cobertura.
     """
-    imagens, total, offset = [], None, 0
+    start = _image_integer(start, "start")
+    if limit is not None:
+        limit = _image_integer(limit, "max")
+        if limit == 0:
+            raise DigitarqError("--max tem de ser >= 1")
+    imagens, vistos, total, offset = [], set(), None, start
     while True:
+        pedido = 500 if limit is None else min(500, limit - len(imagens))
         data = _get_json(session, IMAGES_URL.format(guid=guid),
-                         params={"from": offset, "max": 500}, delay=delay)
+                         params={"fromIndex": offset, "max": pedido}, delay=delay)
+        if not isinstance(data, dict):
+            raise DigitarqError("resposta de imagens fora do formato esperado")
+        recebido = _image_integer(data.get("fromIndex"), "fromIndex")
+        if recebido != offset:
+            raise DigitarqError("fromIndex devolvido %d difere do pedido %d" % (recebido, offset))
+        novo_total = _image_integer(data.get("total"), "total")
+        if total is not None and novo_total != total:
+            raise DigitarqError("total de imagens mudou durante a paginacao; repita a consulta")
+        total = novo_total
         pagina = data.get("results")
-        if not isinstance(pagina, list) or not pagina:
+        if not isinstance(pagina, list):
+            raise DigitarqError("results de imagens fora do formato esperado")
+        if not pagina:
+            if offset < total:
+                raise DigitarqError("pagina vazia antes do total de imagens; cobertura incompleta")
             break
-        try:
-            total = int(data.get("total"))
-        except (TypeError, ValueError):
-            total = total
+        if offset + len(pagina) > total:
+            raise DigitarqError("pagina excede o total declarado de imagens")
+        for item in pagina:
+            ident = item.get("id") if isinstance(item, dict) else None
+            if isinstance(ident, bool) or not isinstance(ident, (str, int)) or ident == "":
+                raise DigitarqError("imagem sem id valido; cobertura nao verificavel")
+            chave = str(ident)
+            if chave in vistos:
+                raise DigitarqError("id de imagem repetido; cobertura nao verificavel")
+            vistos.add(chave)
         imagens.extend(pagina)
-        offset += len(pagina)
+        offset = recebido + len(pagina)
         if limit is not None and len(imagens) >= limit:
             break
-        if total is not None and offset >= total:
+        if offset >= total:
             break
         time.sleep(delay)
     if limit is not None:
@@ -467,15 +505,17 @@ def list_images(session, guid, limit=None, delay=DEFAULT_DELAY):
 
 def cmd_images(args):
     session = _session()
-    imagens, total = list_images(session, args.guid, limit=args.max, delay=args.delay)
+    imagens, total = list_images(session, args.guid, limit=args.max, delay=args.delay,
+                                 start=args.start)
 
     if args.json:
-        print(json.dumps({"total": total, "returned": len(imagens), "results": imagens},
+        print(json.dumps({"fromIndex": args.start, "total": total,
+                          "returned": len(imagens), "results": imagens},
                          ensure_ascii=False, indent=2))
         return
 
     if not imagens:
-        print("(sem imagens para este documento)")
+        print("(sem imagens no intervalo solicitado)")
         return
 
     print("Imagens do documento %s: %d de %s"
@@ -595,6 +635,8 @@ def build_parser():
 
     p_images = sub.add_parser("images", help="Lista fileIds e nomes das imagens de um documento.")
     p_images.add_argument("guid", help="GUID do documento.")
+    p_images.add_argument("--start", type=int, default=0,
+                          help="Indice inicial de base zero (padrao: 0).")
     p_images.add_argument("--max", type=int, default=None,
                           help="Teto de imagens a listar (padrao: todas).")
     p_images.add_argument("--delay", type=float, default=DEFAULT_DELAY,

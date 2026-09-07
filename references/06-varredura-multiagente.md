@@ -45,7 +45,7 @@ não há índice.
 ```
 FASE A — COORDENADOR: preparar
    1. localizar o livro: {GUID} + cota + datas (search/details)
-   2. listar imagens:    GET /rdigital/{GUID}?from=0&max=500  -> results[].id = fileId
+   2. listar imagens:    GET /rdigital/{GUID}?fromIndex=0&max=500  -> results[].id = fileId
    3. (opcional) baixar miniaturas para mapear capa/índice/intervalo de anos
    4. recortar o intervalo de fólios plausível (não o livro inteiro, se houver âncora de ano)
    5. dividir os fileIds em LOTES de ~10-13
@@ -75,7 +75,7 @@ FASE C — COORDENADOR: consolidar
 curl -s 'https://digitarq.arquivos.pt/api/docs/details/{GUID}' | jq '{referenceCode, dateInitial, dateFinal}'
 
 # Listar TODAS as imagens -> results[].id é o fileId que se baixa
-curl -s 'https://digitarq.arquivos.pt/rdigital/{GUID}?from=0&max=500' \
+curl -s 'https://digitarq.arquivos.pt/rdigital/{GUID}?fromIndex=0&max=500' \
   | jq -c '.results[] | {id, name}'
 ```
 
@@ -263,7 +263,7 @@ consolidar → marcar homónimos) é o que importa.
 
 | Quero... | Faço... |
 |---|---|
-| Listar imagens de um livro | `GET /rdigital/{GUID}?from=0&max=500` → `results[].id` = fileId |
+| Listar imagens de um livro | `GET /rdigital/{GUID}?fromIndex=0&max=500` → `results[].id` = fileId |
 | Restringir a varredura ao ano-alvo | sondar com `thumb?fileId=N`, recortar o intervalo de fólios |
 | Dividir o trabalho | lotes de ~10-13 fileIds (8-10 se denso), 1 subagente por lote |
 | Baixar uma página (subagente) | `GET /rdigital/dissemination?fileId=N -o N.jpg` → ferramenta Read |
@@ -272,3 +272,10 @@ consolidar → marcar homónimos) é o que importa.
 | Aceitar mesma pessoa | vários eixos batem (naturalidade+filiação+datas+cônjuge), não só nome |
 | Fechar um negativo | registar fólios varridos + anos cobertos + ilegíveis + próxima fonte |
 | Esqueleto de código | `templates/scan_workflow.example.js` |
+
+## Continuidade e cobertura
+
+Use delegação apenas quando disponível e permitida; sem ela, leia os mesmos lotes
+localmente. Confira índice retornado e IDs conforme [DigitArq §5.1](01-portugal-torre-do-tombo-digitarq.md#51-listar-as-imagens-de-um-documento).
+Guarde recebidos, atribuídos, examinados e ilegíveis separadamente. Pontuação de candidato
+é triagem, não prova de identidade. Uma página pode conter vários atos.

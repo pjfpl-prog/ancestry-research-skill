@@ -1,7 +1,8 @@
-# Portugal — Arquivo Nacional Torre do Tombo (ANTT) via API REST do DigitArq
+# Portugal — DigitArq, Torre do Tombo e Arquivos Distritais
 
-Referência prática para pesquisa genealógica no **Arquivo Nacional Torre do Tombo (ANTT)**
-através da API REST do sistema **DigitArq** (`digitarq.arquivos.pt`).
+Identifique a instituição detentora na ficha e na cota do sistema **DigitArq**
+(`digitarq.arquivos.pt`). A plataforma reúne fundos de várias instituições;
+nem todo resultado pertence à Torre do Tombo.
 
 > **Sem login.** Todos os endpoints abaixo são públicos e respondem JSON ou imagem
 > diretamente. Não há API key, cookie ou token necessário para consulta e download.
@@ -22,7 +23,7 @@ Todos partem do host `https://digitarq.arquivos.pt`.
 |---|---|---|
 | Busca | `GET /api/docs/search?query=TERMO&objType=DOCUMENT` | JSON: `total` + `results[]` |
 | Detalhe de um documento | `GET /api/docs/details/{GUID}` | JSON: descrição arquivística completa |
-| Lista de imagens de um doc | `GET /rdigital/{GUID}?from=0&max=500` | JSON: `results[]` de imagens |
+| Lista de imagens de um doc | `GET /rdigital/{GUID}?fromIndex=0&max=500` | JSON: `results[]` de imagens |
 | Imagem em alta resolução | `GET /rdigital/dissemination?fileId=N` | JPEG (binário) |
 | Miniatura (thumbnail) | `GET /rdigital/thumb?fileId=N` | JPEG pequeno (binário) |
 
@@ -87,6 +88,17 @@ curl -s 'https://digitarq.arquivos.pt/api/docs/search?query=PT%2FTT%2FPRQ%2F<cod
 
 ---
 
+### 2.1 Paginação da busca (verificada em 07/09/2026)
+
+`search --max` limita os resultados reunidos tanto em texto como em JSON; não é apenas
+um corte da impressão. O script usa `fromIndex`, páginas de 10 e teto de 500, com pausas
+e retentativas limitadas. Guarde `total`, `returned` e `notes` da resposta.
+Relevância favorece nomes, mas empates podem repetir ou saltar IDs. Para cotas, use
+`--sort reference_code`; o total pode mudar durante a consulta, mesmo com ordenação.
+Parâmetro na URL não prova cobertura: confira os resultados recebidos. Aspas sozinhas
+não demonstram identidade. Catálogo de livros não é índice completo de pessoas.
+Após o fim paroquial, confirme a custódia do registro civil; não conclua inexistência.
+
 ## 3. Detalhe do documento — `/api/docs/details/{GUID}`
 
 ```
@@ -111,7 +123,7 @@ curl -s 'https://digitarq.arquivos.pt/api/docs/details/{GUID}' | jq .
 
 ## 4. Reference codes de paróquias — anatomia da cota
 
-Os registos paroquiais seguem o padrão:
+Um padrão da Torre do Tombo é (copie o prefixo real de outros arquivos):
 
 ```
 PT / TT / PRQ / <cod-paroquia> / <serie> / <livro>
@@ -151,28 +163,25 @@ PT/TT/PRQ/<cod-paroquia>/002/<livro>
 ### 5.1. Listar as imagens de um documento
 
 ```
-GET https://digitarq.arquivos.pt/rdigital/{GUID}?from=0&max=500
+GET https://digitarq.arquivos.pt/rdigital/{GUID}?fromIndex=0&max=500
 ```
 
-- `from` — índice inicial (paginação; comece em `0`).
-- `max` — quantas imagens devolver (use um valor alto, ex. `500`, para apanhar o livro inteiro).
-
-Resposta (campos principais):
-
-```json
-{
-  "results": [
-    { "id": N, "name": "<nome/rótulo da imagem>" }
-  ]
-}
-```
-
-- `id` = `fileId` numérico — é o que se passa a `dissemination?fileId=N` para baixar.
-- `name` = rótulo da imagem (frequentemente contém número de página/fólio ou ordem de captura).
+- `fromIndex` — posição inicial de base zero. O parâmetro legado `from` foi ignorado
+  pelo servidor na verificação de 07/09/2026, repetindo o início do livro.
+- `max` — tamanho pedido de uma página, não garantia de devolução integral.
+- A resposta contém `fromIndex`, `total` e `results[]`; cada item traz `id` e `name`.
+  Compare o índice recebido, total e IDs antes de aceitar a página.
+- No CLI, `images --start 500 --max 12 --json` começa na posição 500 e devolve até 12
+  imagens, paginando se necessário. Sem `--max`, enumera até ao total.
+- O script recusa índice ausente/divergente, total inconsistente, IDs repetidos e página
+  vazia antes do fim. Falha de contrato não equivale a ausência documental.
+- Avance pela quantidade realmente recebida. Um lote vazio num início além do total não
+  prova que o livro inteiro não tem imagens. O JSON preserva a posição inicial.
+- Enumeração completa não significa leitura completa: registe separadamente IDs
+  atribuídos, lidos, ilegíveis e restantes.
 
 ```bash
-curl -s 'https://digitarq.arquivos.pt/rdigital/{GUID}?from=0&max=500' \
-  | jq '.results[] | {id, name}'
+python scripts/digitarq.py images {GUID} --start 0 --max 12 --json
 ```
 
 ### 5.2. Baixar a imagem
@@ -194,9 +203,9 @@ curl -s 'https://digitarq.arquivos.pt/rdigital/thumb?fileId=N' -o thumb-N.jpg
 Os assentos não têm número de página da web — têm o **fólio** escrito no canto do
 documento original. Para chegar à imagem certa:
 
-1. Liste as imagens (`/rdigital/{GUID}?from=0&max=500`) e guarde a **ordem** dos `id` (fileId).
+1. Liste as imagens (`/rdigital/{GUID}?fromIndex=0&max=500`) e guarde a **ordem** dos `id` (fileId).
 2. O índice na lista ≈ ordem de captura. Em geral, **imagem(n) ≈ fólio inicial + n**, mas
-   o offset varia: as primeiras capturas costumam ser **capa, guardas e termo de abertura**
+   isso é só orientação; o offset varia: as primeiras capturas costumam ser **capa, guardas e termo de abertura**
    (não numerados), por isso o fólio 1 não é a 1ª imagem.
 3. Confirme abrindo uma imagem e lendo o número de fólio manuscrito no **canto superior**
    (frente = recto; verso não numerado). Calcule o offset e salte direto.
@@ -240,8 +249,8 @@ curl -s 'https://digitarq.arquivos.pt/api/docs/search?query=PT%2FTT%2FPRQ%2F<cod
 # 2) Ver a ficha do livro escolhido (confirmar datas/âmbito)
 curl -s 'https://digitarq.arquivos.pt/api/docs/details/{GUID}' | jq .
 
-# 3) Listar todas as imagens do livro
-curl -s 'https://digitarq.arquivos.pt/rdigital/{GUID}?from=0&max=500' \
+# 3) Listar uma página; comparar total e IDs antes de declarar cobertura integral
+curl -s 'https://digitarq.arquivos.pt/rdigital/{GUID}?fromIndex=0&max=500' \
   | jq '.results[] | {id, name}'
 
 # 4) Baixar miniaturas para varrer, depois a página-alvo em alta-res
@@ -282,6 +291,6 @@ Depois de baixar em alta resolução:
 | Confirmar a geração seguinte | série `001` (baptismo) |
 | Fechar idade/cônjuge | série `003` (óbito) |
 | Ver detalhes/filiação no catálogo | `details/{GUID}` (Inquisição: campo "Estatuto social") |
-| Listar imagens de um livro | `rdigital/{GUID}?from=0&max=500` → `results[].id` = fileId |
+| Listar imagens de um livro | `rdigital/{GUID}?fromIndex=0&max=500` → `results[].id` = fileId |
 | Baixar página em alta-res | `rdigital/dissemination?fileId=N` |
 | Ver miniatura | `rdigital/thumb?fileId=N` |
