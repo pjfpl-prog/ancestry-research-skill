@@ -1,0 +1,4 @@
+# Dependencias so de desenvolvimento (testes e lint). Nao sao precisas para USAR
+# a skill; instale com:  pip install -r scripts/requirements-dev.txt
+pytest>=8,<10
+ruff>=0.6,<1

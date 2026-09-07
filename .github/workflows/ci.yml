@@ -1,0 +1,38 @@
+name: CI
+
+# Nao chama a rede. Os testes usam substitutos das funcoes de HTTP e ficheiros
+# GEDCOM gerados em memoria. O unico teste que fala com o DigitArq e marcado
+# `live` e corre a mao (ver tests/test_digitarq.py).
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.9 e o minimo que o README promete; 3.12 e o que a maioria usa hoje.
+        python-version: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # test_repo_hygiene le o log completo dos commits
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r scripts/requirements.txt
+          pip install -r scripts/requirements-dev.txt
+
+      - name: Lint
+        run: ruff check scripts tests
+
+      - name: Testes
+        run: pytest -q
