@@ -1,5 +1,14 @@
-# Dependencias da skill ancestry-research
+# Dependencias da skill ancestry-research.
 # Instale com:  pip install -r scripts/requirements.txt
-requests          # chamadas HTTP as APIs de arquivos (DigitArq) e ao Telegram (notify.py)
-Pillow            # recorte/realce de imagens para leitura paleografica (image_tools.py)
-getmyancestors    # extracao da arvore do FamilySearch para GEDCOM (login do proprio utilizador; sem API key)
+#
+# Limites de versao em vez de pinos exactos (==) de proposito: esta skill e copiada
+# para dentro do ambiente de outra pessoa, e pino exacto entra em conflito com o que
+# ja esteja instalado la. Os intervalos travam a major seguinte, que e onde costuma
+# vir a quebra de API.
+
+requests>=2.31,<3      # chamadas HTTP as APIs de arquivos (DigitArq) e ao Telegram (notify.py)
+Pillow>=10,<13         # recorte/realce de imagens para leitura paleografica (image_tools.py)
+
+# gedcom_audit.py nao tem dependencia externa: usa so a biblioteca-padrao.
+# getmyancestors (FamilySearch) esta a parte, em requirements-familysearch.txt:
+# so serve a quem usa aquela fonte e traz dependencias proprias.

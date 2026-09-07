@@ -70,11 +70,11 @@ cd ancestry-research-skill
 ```bash
 # skill por projeto
 mkdir -p .claude/skills/ancestry-research
-cp -r references scripts templates examples SKILL.md .claude/skills/ancestry-research/
+cp -r references scripts templates examples SKILL.md LICENSE .claude/skills/ancestry-research/
 
 # OU skill global (todos os projetos)
 mkdir -p ~/.claude/skills/ancestry-research
-cp -r references scripts templates examples SKILL.md ~/.claude/skills/ancestry-research/
+cp -r references scripts templates examples SKILL.md LICENSE ~/.claude/skills/ancestry-research/
 ```
 
 No Windows (PowerShell), use `Copy-Item -Recurse` e o caminho equivalente do seu perfil.
@@ -98,10 +98,13 @@ pip install -r scripts/requirements.txt
 - Pacotes Python listados em [`scripts/requirements.txt`](scripts/requirements.txt) — tipicamente:
   - `requests` — chamadas às APIs dos arquivos.
   - `Pillow` (PIL) — recorte, ampliação, *autocontrast* e *threshold* das imagens para leitura.
-  - `getmyancestors` — extração de árvore do FamilySearch para GEDCOM (login do próprio utilizador).
+  - `getmyancestors` — **opcional**, em `scripts/requirements-familysearch.txt`: extração de árvore
+    do FamilySearch para GEDCOM (login do próprio utilizador).
 
-Instale tudo com `pip install -r scripts/requirements.txt`. Mantenha esse ficheiro como fonte
-única da verdade das versões.
+Instale com `pip install -r scripts/requirements.txt`. As dependências têm **limites de versão**
+(intervalos, não pinos exactos): a skill é copiada para ambientes alheios, e pino exacto gera
+conflito com o que já lá está. `getmyancestors` fica em `scripts/requirements-familysearch.txt`,
+à parte, porque só serve a quem usa o FamilySearch.
 
 ---
 
@@ -111,19 +114,19 @@ Instale tudo com `pip install -r scripts/requirements.txt`. Mantenha esse fichei
 de ambiente, definidas pelo próprio utilizador. Nada disto é obrigatório para começar (o DigitArq
 funciona sem login); são opcionais conforme as fontes que quiser usar.
 
-| Variável | Para quê | Obrigatória? |
-|---|---|---|
-| `FAMILYSEARCH_USER` | Utilizador da **sua** conta FamilySearch | Opcional (só para fontes FamilySearch) |
-| `FAMILYSEARCH_PASS` | Senha da **sua** conta FamilySearch | Opcional |
-| `NOTIFY_TELEGRAM_TOKEN` | Token de bot para receber notificações de progresso | Opcional |
-| `NOTIFY_TELEGRAM_CHAT` | ID de chat de destino das notificações | Opcional |
+| Variável | Lida por | Para quê | Obrigatória? |
+|---|---|---|---|
+| `NOTIFY_TELEGRAM_TOKEN` | `scripts/notify.py` | Token de bot para receber notificações de progresso | Opcional |
+| `NOTIFY_TELEGRAM_CHAT` | `scripts/notify.py` | ID de chat de destino das notificações | Opcional |
 
-Exemplo (Linux/macOS):
+**Não há variável de ambiente para o FamilySearch.** Nenhum script deste repositório faz login
+no FamilySearch: a extração da árvore é feita pela ferramenta externa `getmyancestors`, que pede
+a senha interativamente. Não passe a senha em argumento de linha de comando (fica visível na
+lista de processos da máquina). Ver `references/02-familysearch.md`.
+
+Exemplo (Linux/macOS) — tudo opcional, o DigitArq funciona sem nada disto:
 
 ```bash
-export FAMILYSEARCH_USER="o_seu_utilizador"
-export FAMILYSEARCH_PASS="a_sua_senha"
-# notificações são totalmente opcionais:
 export NOTIFY_TELEGRAM_TOKEN="<token-do-seu-bot>"
 export NOTIFY_TELEGRAM_CHAT="<o-seu-chat-id>"
 ```
@@ -131,8 +134,8 @@ export NOTIFY_TELEGRAM_CHAT="<o-seu-chat-id>"
 Exemplo (Windows / PowerShell):
 
 ```powershell
-$env:FAMILYSEARCH_USER = "o_seu_utilizador"
-$env:FAMILYSEARCH_PASS = "a_sua_senha"
+$env:NOTIFY_TELEGRAM_TOKEN = "<token-do-seu-bot>"
+$env:NOTIFY_TELEGRAM_CHAT  = "<o-seu-chat-id>"
 ```
 
 > **Regras de segredo:** nunca cometa senhas, tokens ou IDs no Git. Não escreva credenciais em
@@ -147,7 +150,7 @@ $env:FAMILYSEARCH_PASS = "a_sua_senha"
 ancestry-research-skill/
 ├── README.md            # este ficheiro
 ├── SKILL.md             # instruções principais para o agente (ponto de entrada)
-├── LICENSE              # MIT (sugerida)
+├── LICENSE              # MIT
 ├── references/          # conhecimento de referência: endpoints, tipos de assento,
 │                        #   paleografia, lógica de quebra de muros, fontes por país
 ├── scripts/             # utilitários Python (busca, download, preparação de imagem...)
@@ -171,13 +174,30 @@ ancestry-research-skill/
 ## Aviso legal e ético
 
 - **Respeite os termos de uso** de cada arquivo e biblioteca. APIs públicas como a do DigitArq
-  são para consulta; não as sobrecarregue (faça pausas entre pedidos, em lotes razoáveis).
-- **Use apenas as suas próprias contas.** O acesso ao FamilySearch e a outras plataformas com
-  login deve ser feito com credenciais do próprio utilizador, em conformidade com os respetivos
-  termos.
+  são para consulta; não as sobrecarregue. Os scripts deste repositório pausam entre pedidos e
+  têm teto de resultados por execução, mas o teto é por processo: **vários agentes em paralelo
+  multiplicam a carga** sobre o mesmo servidor. Conte os pedidos do conjunto, não de cada um.
+- **FamilySearch: os termos restringem recolha automatizada e descarregamento em massa.** Usar a
+  sua própria conta **não** é autorização para varrer o acervo. Exporte a **sua** árvore, em
+  volume razoável. Se quiser ir além disso, leia os termos e, se for o caso, peça autorização.
+- **Use apenas as suas próprias contas**, com as suas credenciais, nunca as de terceiros.
+- **Licença das imagens não é a licença deste repositório.** Os conteúdos da rede de arquivos
+  portuguesa são disponibilizados sob licença própria (a DGLAB indica CC BY-SA 4.0, e o DigitArq
+  apresenta a licença aplicável no visualizador). O download direto pelo endpoint **não** traz
+  essa informação junto. Registe a licença ao lado da proveniência no diário de pesquisa,
+  sobretudo antes de redistribuir um recorte, publicar num sítio ou juntar a um processo.
 - **Não publique dados de pessoas vivas.** Genealogia toca em dados pessoais. Mantenha privados
   os dados de familiares vivos e de terceiros; partilhe apenas o que for histórico e público,
   e mesmo assim com bom senso.
+- **Cuidado redobrado com origem étnica e religião.** Uma parte desta skill trata de processos
+  da Inquisição e de ascendência cristã-nova. Ligar essa inferência a uma pessoa identificável é
+  tratar dado sensível, e "o documento é histórico e público" não resolve a questão sozinho: no
+  Brasil a LGPD define origem racial ou étnica e convicção religiosa como dados sensíveis
+  (art. 5º, II) e trata de forma diferente o uso exclusivamente particular e não económico. Se o
+  resultado da pesquisa vai além do seu uso pessoal, pense antes de publicar.
+- **O que sai da skill também é dado pessoal.** O auditor de GEDCOM imprime nomes, datas, lugares
+  e vínculos, e o notificador envia o ficheiro inteiro. Isso vale para logs de agente, tickets,
+  capturas de ecrã e ficheiros de teste: não cole a saída onde não colaria a árvore.
 - **Distinga o documentado da lenda.** Toda afirmação deve ter fonte e cota; o que é tradição
   oral ou hipótese tem de ser rotulado como tal. Marque leituras paleográficas incertas com
   `[?]`. **Nunca invente** nomes, datas ou cotas. **Nunca apresente um homónimo como prova.**
@@ -190,10 +210,12 @@ ancestry-research-skill/
 
 ## Licença
 
-Sugerida: **MIT**. Inclua um ficheiro `LICENSE` com os termos da MIT License. A licença abrange
-**apenas** o código e a documentação deste repositório — não confere quaisquer direitos sobre os
-documentos, imagens ou dados de arquivos de terceiros, que continuam sujeitos às condições das
-respetivas instituições.
+**MIT**, nos termos do ficheiro [`LICENSE`](LICENSE). A licença abrange **apenas** o código e a
+documentação deste repositório — não confere quaisquer direitos sobre os documentos, imagens ou
+dados de arquivos de terceiros, que continuam sujeitos às condições das respetivas instituições.
+
+Se copiar esta skill para outro sítio, leve o `LICENSE` junto: a própria MIT exige que o aviso de
+copyright seja preservado nas cópias.
 
 ```
 SPDX-License-Identifier: MIT

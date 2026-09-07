@@ -34,20 +34,61 @@ const ALVO = {
 // FASE A — Coordenador: localizar o livro e obter a lista de fileIds
 // ---------------------------------------------------------------------------
 
-/** Lista as imagens de um documento: results[].id = fileId; results[].name = rotulo/folio. */
+/**
+ * Lista TODAS as imagens de um documento, paginando ate ao `total` que o proprio
+ * endpoint declara. Pedir `max=500` uma vez so perde o fim dos livros maiores em
+ * silencio, que e o pior tipo de falha numa varredura: da a impressao de cobertura
+ * completa. results[].id = fileId; results[].name = rotulo/folio.
+ */
 async function listImages(guid) {
-  const url = `${BASE}/rdigital/${guid}?from=0&max=500`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`listImages ${guid}: HTTP ${res.status}`);
-  const data = await res.json();
-  return (data.results || []).map((r) => ({ fileId: r.id, name: r.name }));
+  const out = [];
+  let from = 0;
+  let total = null;
+  for (;;) {
+    const res = await fetch(`${BASE}/rdigital/${guid}?from=${from}&max=500`);
+    if (!res.ok) throw new Error(`listImages ${guid}: HTTP ${res.status}`);
+    const data = await res.json();
+    const page = data.results || [];
+    if (page.length === 0) break;
+    if (total === null && typeof data.total === 'number') total = data.total;
+    out.push(...page.map((r) => ({ fileId: r.id, name: r.name })));
+    from += page.length;
+    if (total !== null && from >= total) break;
+    await sleep(500); // servico publico: nao martele
+  }
+  if (total !== null && out.length !== total) {
+    console.warn(`AVISO: listImages devolveu ${out.length} de ${total} imagens declaradas`);
+  }
+  return out;
+}
+
+/** Pausa entre pedidos. */
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Alguns campos da API vem como objeto { id, value, class } em vez de string.
+ * Interpolar isso direto imprime "[object Object]" na citacao do achado.
+ */
+function texto(campo) {
+  if (campo === null || campo === undefined) return '';
+  if (typeof campo === 'string') return campo;
+  if (Array.isArray(campo)) return campo.map(texto).filter(Boolean).join(' / ');
+  if (typeof campo === 'object') return campo.value ? String(campo.value) : '';
+  return String(campo);
 }
 
 /** Ficha do documento (cota + datas) — para a citacao e para confirmar o livro certo. */
 async function getDetails(guid) {
   const res = await fetch(`${BASE}/api/docs/details/${guid}`);
   if (!res.ok) throw new Error(`getDetails ${guid}: HTTP ${res.status}`);
-  return res.json(); // { referenceCode, dateInitial, dateFinal, ... }
+  const d = await res.json();
+  // Normaliza ANTES de devolver: quem consome nao devia ter de saber disto.
+  return {
+    ...d,
+    referenceCode: texto(d.referenceCode),
+    dateInitial: texto(d.dateInitial),
+    dateFinal: texto(d.dateFinal),
+  };
 }
 
 /** Divide um array em lotes de tamanho n. */
@@ -172,14 +213,22 @@ function markHomonyms(findings) {
  */
 function rankCandidates(findings, alvo) {
   const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  // Cada eixo pontua UMA vez por assento, nao uma vez por pessoa do assento.
+  // Erro que isto corrige: com o conjuge e o ano dentro do laco das pessoas, um
+  // assento com quatro nomes somava quatro vezes esses pontos e podia superar um
+  // assento onde o ALVO estava mesmo. Alem disso o conjuge so vale se a pessoa
+  // procurada estiver presente: casar so o nome do conjuge, sozinho, e coincidencia.
   const score = (f) => {
+    const pessoas = f.pessoas || [];
+    const alvoPresente = pessoas.find((p) => norm(p.nome) === norm(alvo.nome));
     let s = 0;
-    for (const p of f.pessoas || []) {
-      if (norm(p.nome) === norm(alvo.nome)) s += 2; // nome e o gatilho, nao a prova
-      if (alvo.naturalidade && norm(p.naturalidade) === norm(alvo.naturalidade)) s += 2;
-      if (alvo.conjuge && (f.pessoas || []).some((q) => norm(q.nome) === norm(alvo.conjuge))) s += 3; // conjuge = ancora forte
-      if (alvo.anoEvento && Math.abs((f.anoCabecalho || 0) - alvo.anoEvento) <= alvo.margemAnos) s += 1;
+    if (alvoPresente) {
+      s += 2; // nome e o gatilho, nao a prova
+      if (alvo.naturalidade && norm(alvoPresente.naturalidade) === norm(alvo.naturalidade)) s += 2;
+      if (alvo.conjuge && pessoas.some((q) => norm(q.nome) === norm(alvo.conjuge))) s += 3; // ancora forte
     }
+    if (alvo.anoEvento && f.anoCabecalho &&
+        Math.abs(f.anoCabecalho - alvo.anoEvento) <= alvo.margemAnos) s += 1;
     return s;
   };
   return findings
@@ -188,12 +237,30 @@ function rankCandidates(findings, alvo) {
     .sort((a, b) => b.score - a.score);
 }
 
-/** Resumo de cobertura: total varrido, legiveis, ilegiveis (negativo conta como progresso). */
-function coverageSummary(findings, fileIdsVarridos) {
+/**
+ * Resumo de cobertura: o que foi ATRIBUIDO, o que voltou, e o que ficou por fazer.
+ *
+ * A versao anterior reportava `imagensVarridas: fileIdsVarridos.length`, ou seja,
+ * contava trabalho ATRIBUIDO como trabalho FEITO: com zero achados devolvidos e
+ * tres fileIds na lista, dizia "3 imagens varridas". Numa varredura, cobertura
+ * inflacionada e pior que cobertura baixa: faz parar de procurar.
+ */
+function coverageSummary(findings, fileIdsAtribuidos) {
   const legiveis = findings.filter((f) => (f.pessoas || []).length > 0).length;
   const ilegiveis = findings.filter((f) => (f.pessoas || []).length === 0).length;
   const anos = [...new Set(findings.map((f) => f.anoCabecalho).filter(Boolean))].sort();
-  return { imagensVarridas: fileIdsVarridos.length, assentosLegiveis: legiveis, paginasIlegiveis: ilegiveis, anosCobertos: anos };
+  const comRetorno = new Set(findings.map((f) => f.fileId).filter((x) => x !== undefined));
+  const semRetorno = fileIdsAtribuidos.filter((id) => !comRetorno.has(id));
+  return {
+    imagensAtribuidas: fileIdsAtribuidos.length,
+    imagensComRetorno: comRetorno.size,
+    imagensSemRetorno: semRetorno.length,   // > 0 = lote falhou ou subagente calou
+    fileIdsSemRetorno: semRetorno,
+    assentosLegiveis: legiveis,
+    paginasIlegiveis: ilegiveis,
+    anosCobertos: anos,
+    coberturaCompleta: semRetorno.length === 0,
+  };
 }
 
 // ---------------------------------------------------------------------------

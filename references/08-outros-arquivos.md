@@ -67,7 +67,7 @@ passaportes e fundos locais. A cobertura digital é **desigual**:
 
 **Regra de procura por uma paróquia**
 1. Tente o **DigitArq** (reference code `PT/TT/PRQ/...` quando o fundo está na
-   Torre do Tombo) — ver `02-digitarq.md`.
+   Torre do Tombo) — ver `01-portugal-torre-do-tombo-digitarq.md`.
 2. Se não houver imagem, procure a **mesma paróquia no catálogo do FamilySearch**
    (`/search/catalog/results?q.placeName=`), que frequentemente tem o microfilme.
 3. Se ambos só tiverem catálogo (sem imagem online), é caso de **arquivo físico**

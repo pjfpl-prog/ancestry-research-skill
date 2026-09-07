@@ -77,6 +77,14 @@ Para a busca propriamente dita:
 
 - DigitArq: `python scripts/digitarq.py search "TERMO"` (busca) -> `python scripts/digitarq.py details {GUID}`
   (le a ficha com a filiacao). Para Inquisicao, a ficha traz o campo **"Estatuto social"**.
+  - A API devolve **10 por pedido**; o script pagina sozinho ate ao `--max` que voce pedir.
+  - **Procurar NOME**: mantenha a ordenacao padrao (`relevance`), que e a do portal. Ela nao da
+    ordem estavel, entao alem da primeira pagina pode repetir ou saltar; o script avisa e remove
+    repetidos, mas nao ha garantia de completude. Prefira refinar o termo a pedir `--max` alto.
+  - **Varrer uma COTA** (`PT/TT/PRQ/...`): use `--sort reference_code`, que da paginacao integra.
+  - `--with-images` filtra no servidor so o que tem digitalizacao.
+  - Na listagem, a coluna e **`ficheiros=N`** (campo `filesCount`): `N > 0` significa que ha
+    digitalizacao. A busca NAO devolve `hasImages`; essa chave so existe no `details`.
 - FamilySearch: registos indexados por nome/conjuge/lugar; texto completo (OCR/IA) por
   frase exata. Veja `references/02-familysearch.md`.
 - **Se o livro NAO for indexado por nome** -> varredura pagina-a-pagina multi-agente
@@ -88,6 +96,9 @@ Quando so existe a imagem do livro (sem indice de nomes):
 
 1. `python scripts/digitarq.py images {GUID}` lista as imagens (`fileId` + `name`).
 2. Divida as imagens em **lotes de ~10-13** entre subagentes.
+   ⚠️ O teto de pedidos dos scripts e POR PROCESSO. Cinco subagentes a varrer em paralelo fazem
+   cinco vezes os pedidos ao mesmo servidor publico. Conte a carga do conjunto: prefira poucos
+   lotes grandes a muitos agentes simultaneos, e aumente `--delay` se for alargar o paralelismo.
 3. Cada subagente baixa em alta resolucao (`python scripts/digitarq.py download {fileId}`), recorta/amplia e LE.
 4. Cada um devolve os achados com **folio/fileId, transcricao, e nivel de confianca**.
 5. Marque **homonimos** sempre que houver duvida. Veja `references/06-varredura-multiagente.md`
@@ -124,21 +135,27 @@ confianca cair — e registe isso, e tambem um resultado valido.
 
 ## 3. Scripts e referencias
 
-Tudo abaixo e generico e reutilizavel. Os scripts usam apenas endpoints publicos
-(DigitArq sem login) ou as credenciais do proprio usuario (FamilySearch via env).
+Tudo abaixo e generico e reutilizavel. Os scripts usam apenas endpoints publicos: o DigitArq
+nao exige login e nenhum script daqui autentica em lado nenhum. O FamilySearch entra pela
+ferramenta externa `getmyancestors`, com o login interativo do proprio usuario.
 
 ### scripts/ (executar com `python scripts/<arquivo>`; antes: `pip install -r scripts/requirements.txt`)
 
 - `digitarq.py` — CLI do DigitArq (Torre do Tombo, sem login). Subcomandos:
-  - `search "TERMO"` — busca; imprime total + resultados (`GUID`, titulos, reference code, datas, se tem imagens).
+  - `search "TERMO"` — busca paginada; imprime total + resultados (reference code, datas,
+    `ficheiros=N`, `GUID`, titulo). Opcoes: `--max`, `--sort`, `--with-images`, `--delay`, `--json`.
   - `details {GUID}` — ficha detalhada (descricao com filiacao; campo "Estatuto social" na Inquisicao).
-  - `images {GUID}` — lista as imagens de um documento (`fileId` + `name`).
-  - `download {fileId} [saida.jpg]` — baixa uma imagem em alta resolucao.
+  - `images {GUID}` — lista TODAS as imagens do documento (`fileId` + `name`), paginando.
+  - `download {fileId} [saida.jpg]` — baixa uma imagem em alta resolucao. Recusa e nao grava nada
+    se a resposta nao for imagem, e nao sobrescreve ficheiro existente sem `--force`.
 - `image_tools.py` — leitura paleografica (PIL). Subcomandos: `download`, `enhance`
   (autocontrast/threshold/zoom), `crop` (caixa relativa + zoom), `folio` (recorta o numero
   do folio no canto), `split` (separa as duas paginas de uma abertura).
-- `gedcom_audit.py arvore.ged [--walls] [--json]` — audita um GEDCOM (so-leitura): nos-lixo,
-  datas suspeitas (obito lancado como nascimento), mojibake, individuos sem familia, paredes.
+- `gedcom_audit.py arvore.ged [--walls] [--json]` — audita um GEDCOM (so-leitura): ligacoes
+  assimetricas FAMC/CHIL, XREF duplicado, nos-lixo, datas impossiveis e suspeitas (obito lancado
+  como nascimento), mojibake, individuos sem familia, loops de ascendencia e muros. Respeita
+  `PEDI` (adotivo nao entra em teste de idade biologica) e `STAT disproven` (ligacao refutada
+  pelo proprio ficheiro nao conta como ascendencia).
 - `notify.py msg "..."` / `notify.py file <caminho> --caption "..."` — envia resultado por
   Telegram lendo `NOTIFY_TELEGRAM_TOKEN`/`NOTIFY_TELEGRAM_CHAT` do ambiente (sem segredos no codigo).
 - **Exportar a arvore para GEDCOM**: ferramenta open-source `getmyancestors`
@@ -189,12 +206,19 @@ Tudo abaixo e generico e reutilizavel. Os scripts usam apenas endpoints publicos
    confira o documento; a skill propoe, o usuario confirma.
 6. **Medir em registos NOVOS** — o valor de uma sessao e quantos fatos novos com fonte
    foram adicionados, nao o tamanho do texto produzido.
+7. **Dado sensivel exige mao mais leve** — origem etnica e religiao ligadas a pessoa
+   identificavel (o caso tipico: ascendencia crista-nova achada na Inquisicao) sao dado sensivel.
+   Registe com fonte, como qualquer outro fato, mas nao publique nem partilhe fora do uso
+   pessoal do usuario sem ele decidir isso explicitamente.
 
 ## 5. Privacidade e credenciais
 
 - O usuario fornece as **proprias credenciais** — nunca embutir login/senha no codigo.
-  FamilySearch e a ferramenta `getmyancestors` usam variaveis de ambiente
-  (ex.: `FS_USERNAME`, `FS_PASSWORD`) ou o login interativo do proprio usuario.
+  Nenhum script deste repositorio faz login no FamilySearch: quem extrai a arvore e a ferramenta
+  externa `getmyancestors`, que pede a senha interativamente. **Nao passe senha em argumento de
+  linha de comando**: argumentos sao visiveis na lista de processos da maquina. As unicas
+  variaveis de ambiente que algum script daqui le sao `NOTIFY_TELEGRAM_TOKEN` e
+  `NOTIFY_TELEGRAM_CHAT`, no `notify.py`.
 - DigitArq/Torre do Tombo e publico e nao requer login.
 - Nao guardar dados de pessoas vivas nem segredos no repositorio da skill. Caminhos,
   arvores e GEDCOMs do usuario ficam fora da skill, no espaco de trabalho dele.

@@ -1,0 +1,15 @@
+# Opcional: so para quem vai extrair a arvore do FamilySearch para GEDCOM.
+# Instale com:  pip install -r scripts/requirements-familysearch.txt
+#
+# Fica separado do requirements.txt para que quem so usa o DigitArq nao pague a
+# instalacao desta arvore de dependencias.
+#
+# ATENCAO antes de usar:
+#  - a ferramenta e de terceiros e tem licenca PROPRIA (GPL-3.0), diferente da MIT
+#    deste repositorio. Usa-la como programa nao muda a licenca da skill; copiar
+#    codigo dela para ca mudaria.
+#  - confirme as flags com `getmyancestors --help`: elas mudaram entre versoes.
+#  - NAO passe a senha em argumento de linha de comando; deixe-a ser pedida.
+#  - os termos do FamilySearch restringem recolha automatizada e download em massa.
+
+getmyancestors

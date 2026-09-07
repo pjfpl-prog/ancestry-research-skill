@@ -55,7 +55,7 @@ Formato da resposta (campos principais):
       "referenceCode": "PT/TT/PRQ/<cod-paroquia>/<serie>/<livro>",
       "dateInitial": "1700-01-01",
       "dateFinal": "1750-12-31",
-      "hasImages": true
+      "filesCount": 284
     }
   ]
 }
@@ -63,7 +63,7 @@ Formato da resposta (campos principais):
 
 Notas:
 - `total` é o número total de resultados (pode exceder os devolvidos numa página).
-- `hasImages: true` indica que existem digitalizações — só esses valem para varredura página-a-página.
+- ⚠️ **O resultado da BUSCA não traz `hasImages`.** Essa chave só existe no `details`. Na busca o que existe é **`filesCount`**, o número de ficheiros digitais associados à ficha: `filesCount > 0` é o sinal de que há digitalização e de que o documento vale para varredura página-a-página. Verificado em 07/09/2026. Para filtrar já no servidor, envie `hasImages=true` como parâmetro da busca (é filtro, não campo de saída): numa query de 43 resultados, o filtro devolveu 36.
 - `referenceCode` é a cota arquivística; é a chave para localizar o livro físico/digital (§4).
 - `titles` é um array (pode ter mais de um título/forma).
 
@@ -82,7 +82,7 @@ curl -s 'https://digitarq.arquivos.pt/api/docs/search?query=PT%2FTT%2FPRQ%2F<cod
 > Dica de extração com `jq`:
 > ```bash
 > curl -s 'https://digitarq.arquivos.pt/api/docs/search?query=TERMO&objType=DOCUMENT' \
->   | jq '.total, (.results[] | {id, referenceCode, dateInitial, dateFinal, hasImages})'
+>   | jq '.total, (.results[] | {id, referenceCode, dateInitial, dateFinal, filesCount})'
 > ```
 
 ---
@@ -223,7 +223,7 @@ O caminho fiável:
    ```
 2. Filtre por **série** (`002` casamento, `001` baptismo, `003` óbito, `004` mistos) e por
    **intervalo de datas** (`dateInitial`/`dateFinal`) para achar o livro que cobre o ano-alvo.
-3. Confirme `hasImages: true`, pegue o `{GUID}`, liste as imagens e leia.
+3. Confirme `filesCount > 0` na busca (ou `hasImages: true` no `details`), pegue o `{GUID}`, liste as imagens e leia.
 
 Ou seja: **encontre o LIVRO pela cota e pela data**, depois leia as imagens — em vez de
 esperar que o motor encontre a PESSOA. É mais rápido, mais completo e evita falsos negativos.
@@ -235,7 +235,7 @@ esperar que o motor encontre a PESSOA. É mais rápido, mais completo e evita fa
 ```bash
 # 1) Achar o livro da série de casamentos de uma paróquia
 curl -s 'https://digitarq.arquivos.pt/api/docs/search?query=PT%2FTT%2FPRQ%2F<cod-paroquia>%2F002&objType=DOCUMENT' \
-  | jq '.total, (.results[] | {id, referenceCode, dateInitial, dateFinal, hasImages})'
+  | jq '.total, (.results[] | {id, referenceCode, dateInitial, dateFinal, filesCount})'
 
 # 2) Ver a ficha do livro escolhido (confirmar datas/âmbito)
 curl -s 'https://digitarq.arquivos.pt/api/docs/details/{GUID}' | jq .

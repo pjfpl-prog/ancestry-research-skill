@@ -25,7 +25,7 @@ não há índice.
 
 **Use varredura quando:**
 - O livro certo já está **localizado** (cota + `{GUID}` + datas que cobrem o ano-alvo) e
-  `hasImages: true`, mas a busca por nome não devolve o assento.
+  `filesCount > 0` na busca (ou `hasImages: true` no `details`), mas a busca por nome não devolve o assento.
 - **Não há índice onomástico** legível, ou o índice salta o nome procurado.
 - O ano-alvo é conhecido com margem (ex.: "casou ~ANO ± 5"), de modo a que a varredura
   fique limitada a um intervalo de fólios, não ao livro inteiro.
@@ -61,7 +61,7 @@ FASE C — COORDENADOR: consolidar
    juntar achados de todos os lotes
    marcar homónimos (mesmo nome, contexto diferente)
    ranquear candidatos ao ALVO por nº de eixos que batem (§6)
-   registar com fonte + confiança (templates/finding.md); negativos contam
+   registar com fonte + confiança (`templates/research_log.template.md`); negativos contam
 ```
 
 ---
@@ -124,7 +124,7 @@ curl -s 'https://digitarq.arquivos.pt/rdigital/dissemination?fileId=N' -o N.jpg
 ```
 # 2) LER com a ferramenta Read aplicada ao ficheiro N.jpg
 #    (se a tinta estiver fraca ou a letra apertada, recortar/ampliar antes —
-#     ver scripts/paleo_enhance.py e 03-paleografia.md: autocontrast, threshold)
+#     ver scripts/image_tools.py e 03-paleografia.md: autocontrast, threshold)
 # 3) EXTRAIR cada assento legível para um objeto estruturado (§5)
 ```
 
@@ -207,7 +207,7 @@ Junte as listas de todos os lotes e processe:
    não escolha o conveniente.
 
 4. **Atribuir confiança final** e **registar** cada achado aceite com fonte completa
-   (`templates/finding.md`): cota + `{GUID}` + `fileId` + fólio + transcrição. A confiança
+   (`templates/research_log.template.md`): cota + `{GUID}` + `fileId` + fólio + transcrição. A confiança
    da cadeia herda o **elo mais fraco**.
 
 5. **Registar o negativo.** Se o alvo não apareceu: anote o intervalo de fólios varrido,

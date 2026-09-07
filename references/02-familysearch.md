@@ -108,7 +108,7 @@ e leia o assento original — o índice resume e por vezes erra.
   Procurar no catálogo pelo nome da **freguesia** e do **concelho**.
 - Sobreposição parcial com os Arquivos Distritais portugueses e com a Torre do Tombo/DigitArq —
   o mesmo livro pode estar nos dois sítios; o FamilySearch frequentemente tem OCR/índice por nome
-  que o arquivo de origem não tem. (Ver `01-digitarq.md` para a Torre do Tombo.)
+  que o arquivo de origem não tem. (Ver `01-portugal-torre-do-tombo-digitarq.md` para a Torre do Tombo.)
 - **Registo civil** português (a partir de 1911, e antes em alguns lugares) também presente.
 
 ### 3.2 Brasil
@@ -154,22 +154,32 @@ Instalação e uso (esqueleto — sem credenciais embutidas):
 ```bash
 pip install getmyancestors
 
-# Credenciais via ambiente — NUNCA hardcoded no script/repo:
-export FS_USERNAME="$FAMILYSEARCH_USER"     # o utilizador põe o seu próprio
-export FS_PASSWORD="$FAMILYSEARCH_PASS"
-
-# Exporta a partir de uma pessoa-raiz (PID = identificador FamilySearch da pessoa, ex. XXXX-XXX)
+# Exporta a partir de uma pessoa-raiz (PID = identificador FamilySearch, ex. XXXX-XXX).
+# Passe SO o utilizador: a senha e pedida interativamente e nao fica em lado nenhum.
 getmyancestors \
-  --username "$FS_USERNAME" \
-  --password "$FS_PASSWORD" \
+  --username "o_seu_utilizador" \
   --individual {PID_RAIZ} \
-  --ascendancy {N_GERACOES} \
   --out arvore.ged
 ```
 
+> ⚠️ **Não passe a senha em `--password`.** Argumentos de linha de comando são visíveis
+> na lista de processos da máquina (`ps`, Gestor de Tarefas, `wmic`) para qualquer outro
+> processo do mesmo utilizador, e costumam ficar no histórico da shell. Variável de ambiente
+> não resolve isto: o problema é o argumento, não a origem do valor. Deixe a ferramenta pedir
+> a senha.
+>
+> ⚠️ **Confirme as flags na versão que instalou** (`getmyancestors --help`) antes de copiar
+> qualquer receita, esta incluída. Os nomes das opções mudaram entre versões (a opção de
+> gerações de ascendência já apareceu como `--ascend` e como `--ascendancy`); uma receita
+> desatualizada falha com "unrecognized arguments", não com um erro claro.
+>
+> ⚠️ **Termos de uso.** O FamilySearch restringe recolha automatizada e descarregamento
+> em massa. Usar a sua própria conta não é autorização para varrer o acervo: exporte a **sua**
+> árvore, em volume razoável, e leia os termos antes de automatizar mais do que isso.
+
 Notas:
-- Passe as credenciais por variável de ambiente ou prompt interativo; **nunca** as escreva no
-  código nem as commite. Trate `.ged` como dado pessoal (não versionar em repo público).
+- A senha é pedida pela própria ferramenta; **nunca** a escreva no código nem num argumento, e
+  nunca a commite. Trate `.ged` como dado pessoal (não versionar em repositório público).
 - A ferramenta extrai **a árvore do utilizador** — só puxa o que a conta dele já tem acesso/inseriu;
   não é um scraper geral do acervo.
 - Depois de ter o GEDCOM, processe-o localmente (parsing por script, deduplicação, deteção de
@@ -204,5 +214,5 @@ Notas:
 4. Saltar de `1:1:` (indexado) para `3:1:` (imagem) e **ler o assento original**.
 5. Para a árvore própria: `getmyancestors` → GEDCOM (credenciais por env, ficheiro tratado como
    dado pessoal).
-6. Cruzar com a Torre do Tombo/DigitArq (`01-digitarq.md`), Arquivos Distritais, AHU e hemerotecas
+6. Cruzar com a Torre do Tombo/DigitArq (`01-portugal-torre-do-tombo-digitarq.md`), Arquivos Distritais, AHU e hemerotecas
    para o que o FamilySearch não cobre.
