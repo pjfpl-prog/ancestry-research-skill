@@ -6,16 +6,40 @@ extracao automatica (ver references/07-gedcom.md) para que um humano decida a
 correcao. Sem dependencias externas: usa apenas a biblioteca-padrao do Python 3.
 
 Defeitos cacados:
-  - muros: individuos sem pais conhecidos (sem FAMC valida) -> lista de trabalho
+  - ligacoes assimetricas: FAM.CHIL sem FAMC reciproco e vice-versa, ponteiros
+    para registos inexistentes, XREF duplicado
+  - muros: individuos sem pais conhecidos -> lista de trabalho
   - datas impossiveis: nascimento depois do obito; idade ao morrer negativa ou > 115;
-    filho mais velho que o pai/mae
+    filho nascido cedo demais ou tarde demais em relacao ao pai/mae
   - BIRT que parece ser obito: nascimento POSTERIOR ao(s) filho(s) ou
     suspeitosamente proximo do obito -> tipico de data de obito lancada no campo BIRT
   - mojibake / encoding partido (padrao 'A~'/'A^' do UTF-8 lido como latin-1)
-  - nos-lixo: nomes-lembrete ('ver ...', '??', etc.) e INDI orfaos de tudo
+  - nos-lixo: nomes-lembrete ('ver livro 2', '??', etc.) e INDI orfaos de tudo
   - duplicados candidatos: mesma assinatura nome + data de nascimento
   - loops de ascendencia (alguem e seu proprio antepassado)
   - vazios: individuos sem nome; eventos com data e sem lugar
+
+--- COMO ESTE AUDITOR TRATA A FILIACAO --------------------------------------
+No GEDCOM 5.5.1 a filiacao aparece dos DOIS lados: `INDI.FAMC` aponta para a
+familia onde a pessoa e filho, e `FAM.CHIL` aponta de volta para o filho. Os
+dois deviam concordar; em ficheiros de extracao automatica muitas vezes nao
+concordam.
+
+A versao anterior deste auditor lia um lado para uns testes e o outro lado para
+outros, e por isso conseguia, no MESMO relatorio, listar alguem como "sem pais
+conhecidos" e ao mesmo tempo acusar que essa pessoa "nasceu antes do pai".
+
+Aqui a regra e explicita:
+  1. Toda ligacao de filiacao, venha de FAMC ou de CHIL, entra num mapa unico,
+     COM a origem registada.
+  2. Toda assimetria entra em `link_inconsistencies`. Reconciliar nao apaga o
+     defeito: o ficheiro continua partido e o utilizador precisa de saber.
+  3. `FAMC` pode trazer `PEDI` (birth/adopted/foster/sealing) e `STAT`
+     (challenged/disproven/proven). Ligacao com `STAT disproven` NAO conta como
+     ascendencia: o proprio ficheiro diz que ela foi refutada. Ligacao nao
+     biologica (adopted/foster/sealing) conta para "tem pais", mas fica de fora
+     dos testes de plausibilidade BIOLOGICA de idade.
+Sem isso, "reconciliar" viraria inventar ascendencia que o ficheiro nega.
 
 NB: este ficheiro evita acentos no codigo-fonte de proposito (placeholders/comentarios
 ASCII); os dados do GEDCOM, esses, sao tratados no encoding correto.
@@ -34,13 +58,16 @@ import sys
 from dataclasses import dataclass, field
 from typing import Optional
 
-
 # --------------------------------------------------------------------------- #
 # Leitura do ficheiro com deteccao de encoding                                 #
 # --------------------------------------------------------------------------- #
 
 # Sequencias tipicas de mojibake (UTF-8 lido como latin-1/cp1252).
-MOJIBAKE_RE = re.compile(r"[ÃÂ][-¿]")
+MOJIBAKE_RE = re.compile(r"[ÃÂ][\x80-¿]")
+
+
+class GedcomError(Exception):
+    """Ficheiro ilegivel ou que nao parece ser um GEDCOM."""
 
 
 def _mojibake_score(text: str) -> int:
@@ -51,9 +78,20 @@ def _mojibake_score(text: str) -> int:
 def read_gedcom(path: str) -> tuple[str, str]:
     """Le o ficheiro escolhendo o encoding que produz menos mojibake.
 
-    Retorna (texto, encoding_usado). Tenta utf-8-sig, utf-8, cp1252, latin-1.
+    Retorna (texto, encoding_usado). Tenta utf-16 (por BOM), utf-8-sig, utf-8,
+    cp1252, latin-1. O latin-1 nunca falha, e por isso e o ultimo recurso: sem
+    tentar os outros primeiro, um ficheiro UTF-16 seria lido como lixo e o
+    parser devolveria zero individuos sem dizer porque.
     """
-    raw = open(path, "rb").read()
+    with open(path, "rb") as fh:
+        raw = fh.read()
+
+    if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        try:
+            return raw.decode("utf-16"), "utf-16"
+        except UnicodeDecodeError:
+            pass
+
     candidates = ("utf-8-sig", "utf-8", "cp1252", "latin-1")
     best_text: Optional[str] = None
     best_enc = "latin-1"
@@ -93,10 +131,18 @@ MONTHS = {
     "JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6,
     "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12,
 }
-DATE_QUALIFIERS = ("ABT", "BEF", "AFT", "EST", "CAL", "FROM", "TO", "BET", "AND")
+# Qualificadores que tornam a data APROXIMADA ou um intervalo. Uma data assim
+# nao pode sustentar acusacao de impossibilidade: "BEF 1900" contra um obito em
+# 1890 e perfeitamente coerente (nasceu antes de 1900, e antes de 1890).
+APPROX_QUALIFIERS = ("ABT", "ABOUT", "BEF", "BEFORE", "AFT", "AFTER", "EST",
+                     "CAL", "FROM", "TO", "BET", "AND", "INT")
+QUALIFIER_RE = re.compile(r"\b(%s)\b" % "|".join(APPROX_QUALIFIERS), re.IGNORECASE)
 YEAR_RE = re.compile(r"\b(\d{3,4})\b")
-DAY_RE = re.compile(r"^\s*(\d{1,2})\b")
-MONTH_RE = re.compile(r"\b([A-Z]{3})\b")
+
+# Campos de nivel 1 do INDI que aceitam continuacao por CONC/CONT.
+CONTINUABLE = ("NAME", "PLAC", "NOTE", "TITL", "OCCU", "SOUR", "TEXT")
+
+NON_BIOLOGICAL_PEDI = ("adopted", "foster", "sealing")
 
 
 @dataclass
@@ -106,6 +152,24 @@ class GedLine:
     xref: Optional[str]
     value: str
     lineno: int
+
+
+@dataclass
+class ChildLink:
+    """Uma ligacao 'esta pessoa e filho desta familia', com a sua procedencia."""
+    fam: str
+    origem: str = "FAMC"          # FAMC | CHIL | ambos
+    pedi: str = ""                # birth | adopted | foster | sealing | ""
+    stat: str = ""                # challenged | disproven | proven | ""
+    lineno: int = 0
+
+    @property
+    def conta_como_ascendencia(self) -> bool:
+        return self.stat.lower() != "disproven"
+
+    @property
+    def e_biologica(self) -> bool:
+        return self.pedi.lower() not in NON_BIOLOGICAL_PEDI
 
 
 @dataclass
@@ -120,8 +184,8 @@ class Indi:
     deat_date: str = ""
     deat_place: str = ""
     deat_lineno: int = 0
-    famc: list[str] = field(default_factory=list)  # familia onde e FILHO
-    fams: list[str] = field(default_factory=list)  # familia onde e CONJUGE
+    famc: list = field(default_factory=list)   # list[ChildLink] declarados no INDI
+    fams: list = field(default_factory=list)   # familias onde e CONJUGE
 
 
 @dataclass
@@ -130,13 +194,13 @@ class Fam:
     lineno: int
     husb: Optional[str] = None
     wife: Optional[str] = None
-    chil: list[str] = field(default_factory=list)
+    chil: list = field(default_factory=list)
     marr_date: str = ""
     marr_place: str = ""
 
 
-def parse_lines(text: str) -> list[GedLine]:
-    out: list[GedLine] = []
+def parse_lines(text: str) -> list:
+    out = []
     for i, raw in enumerate(text.splitlines(), start=1):
         if not raw.strip():
             continue
@@ -151,38 +215,69 @@ def parse_lines(text: str) -> list[GedLine]:
     return out
 
 
-def parse(text: str) -> tuple[dict[str, Indi], dict[str, Fam]]:
-    """Constroi os dicionarios de INDI e FAM a partir das linhas."""
+def parse(text: str) -> tuple:
+    """Constroi os dicionarios de INDI e FAM, mais a lista de XREF duplicados.
+
+    Junta CONC/CONT: sem isso um nome ou lugar longo, partido em varias linhas
+    pelo exportador, ficava truncado em silencio no primeiro pedaco.
+    """
     lines = parse_lines(text)
-    indis: dict[str, Indi] = {}
-    fams: dict[str, Fam] = {}
+    indis: dict = {}
+    fams: dict = {}
+    duplicados: list = []
 
     cur_indi: Optional[Indi] = None
     cur_fam: Optional[Fam] = None
-    # contexto do ultimo evento de nivel 1 dentro de INDI/FAM
-    cur_event: str = ""
+    cur_event = ""
+    cur_famc: Optional[ChildLink] = None
+    # Para onde uma linha CONC/CONT deve escrever: (objeto, atributo).
+    cont_alvo = None
 
     for ln in lines:
         if ln.level == 0:
             cur_indi = cur_fam = None
             cur_event = ""
+            cur_famc = None
+            cont_alvo = None
             if ln.tag == "INDI" and ln.xref:
+                if ln.xref in indis:
+                    duplicados.append({"xref": ln.xref, "tipo": "INDI",
+                                       "line": ln.lineno,
+                                       "line_anterior": indis[ln.xref].lineno})
                 cur_indi = Indi(xref=ln.xref, lineno=ln.lineno)
                 indis[ln.xref] = cur_indi
             elif ln.tag == "FAM" and ln.xref:
+                if ln.xref in fams:
+                    duplicados.append({"xref": ln.xref, "tipo": "FAM",
+                                       "line": ln.lineno,
+                                       "line_anterior": fams[ln.xref].lineno})
                 cur_fam = Fam(xref=ln.xref, lineno=ln.lineno)
                 fams[ln.xref] = cur_fam
+            continue
+
+        # Continuacao de valor longo. So se aplica ao campo imediatamente
+        # anterior; qualquer outra tag limpa o alvo (evita colar uma NOTE no
+        # fim do NAME anterior).
+        if ln.tag in ("CONC", "CONT") and cont_alvo is not None:
+            obj, attr = cont_alvo
+            sep = "\n" if ln.tag == "CONT" else ""
+            setattr(obj, attr, getattr(obj, attr) + sep + ln.value)
             continue
 
         if cur_indi is not None:
             if ln.level == 1:
                 cur_event = ln.tag
+                cur_famc = None
+                cont_alvo = None
                 if ln.tag == "NAME":
                     cur_indi.name = ln.value
+                    cont_alvo = (cur_indi, "name")
                 elif ln.tag == "SEX":
                     cur_indi.sex = ln.value
                 elif ln.tag == "FAMC" and ln.value:
-                    cur_indi.famc.append(ln.value.strip())
+                    cur_famc = ChildLink(fam=ln.value.strip(), origem="FAMC",
+                                         lineno=ln.lineno)
+                    cur_indi.famc.append(cur_famc)
                 elif ln.tag == "FAMS" and ln.value:
                     cur_indi.fams.append(ln.value.strip())
                 elif ln.tag in ("BIRT", "CHR", "BAPM"):
@@ -190,19 +285,38 @@ def parse(text: str) -> tuple[dict[str, Indi], dict[str, Fam]]:
                 elif ln.tag == "DEAT":
                     cur_indi.deat_lineno = cur_indi.deat_lineno or ln.lineno
             elif ln.level >= 2:
-                if cur_event in ("BIRT", "CHR", "BAPM"):
-                    if ln.tag == "DATE" and not cur_indi.birt_date:
+                if cur_event == "FAMC" and cur_famc is not None:
+                    if ln.tag == "PEDI":
+                        cur_famc.pedi = ln.value.strip()
+                    elif ln.tag == "STAT":
+                        cur_famc.stat = ln.value.strip()
+                    cont_alvo = None
+                elif cur_event in ("BIRT", "CHR", "BAPM"):
+                    # So o nivel 2 do evento interessa: DATE dentro de SOUR/DATA
+                    # (nivel 3+) e a data da FONTE, nao a do nascimento.
+                    if ln.level == 2 and ln.tag == "DATE" and not cur_indi.birt_date:
                         cur_indi.birt_date = ln.value
-                    elif ln.tag == "PLAC" and not cur_indi.birt_place:
+                        cont_alvo = None
+                    elif ln.level == 2 and ln.tag == "PLAC" and not cur_indi.birt_place:
                         cur_indi.birt_place = ln.value
+                        cont_alvo = (cur_indi, "birt_place")
+                    else:
+                        cont_alvo = None
                 elif cur_event == "DEAT":
-                    if ln.tag == "DATE" and not cur_indi.deat_date:
+                    if ln.level == 2 and ln.tag == "DATE" and not cur_indi.deat_date:
                         cur_indi.deat_date = ln.value
-                    elif ln.tag == "PLAC" and not cur_indi.deat_place:
+                        cont_alvo = None
+                    elif ln.level == 2 and ln.tag == "PLAC" and not cur_indi.deat_place:
                         cur_indi.deat_place = ln.value
+                        cont_alvo = (cur_indi, "deat_place")
+                    else:
+                        cont_alvo = None
+                else:
+                    cont_alvo = None
             continue
 
         if cur_fam is not None:
+            cont_alvo = None
             if ln.level == 1:
                 cur_event = ln.tag
                 if ln.tag == "HUSB" and ln.value:
@@ -210,15 +324,15 @@ def parse(text: str) -> tuple[dict[str, Indi], dict[str, Fam]]:
                 elif ln.tag == "WIFE" and ln.value:
                     cur_fam.wife = ln.value.strip()
                 elif ln.tag == "CHIL" and ln.value:
-                    cur_fam.chil.append(ln.value.strip())
-            elif ln.level >= 2 and cur_event == "MARR":
+                    cur_fam.chil.append((ln.value.strip(), ln.lineno))
+            elif ln.level == 2 and cur_event == "MARR":
                 if ln.tag == "DATE" and not cur_fam.marr_date:
                     cur_fam.marr_date = ln.value
                 elif ln.tag == "PLAC" and not cur_fam.marr_place:
                     cur_fam.marr_place = ln.value
             continue
 
-    return indis, fams
+    return indis, fams, duplicados
 
 
 # --------------------------------------------------------------------------- #
@@ -233,27 +347,13 @@ def parse_year(date_value: str) -> Optional[int]:
     return int(m.group(1)) if m else None
 
 
-def parse_full_date(date_value: str) -> Optional[tuple[int, int, int]]:
-    """(ano, mes, dia) quando completa; senao None. Para comparacao fina."""
-    if not date_value:
-        return None
-    v = date_value.upper()
-    for q in DATE_QUALIFIERS:
-        v = re.sub(rf"\b{q}\b", " ", v)
-    year = parse_year(v)
-    if year is None:
-        return None
-    mon = 0
-    mm = MONTH_RE.search(v)
-    if mm and mm.group(1) in MONTHS:
-        mon = MONTHS[mm.group(1)]
-    day = 0
-    dm = DAY_RE.search(v.strip())
-    if dm:
-        d = int(dm.group(1))
-        if 1 <= d <= 31:
-            day = d
-    return (year, mon, day)
+def date_is_approximate(date_value: str) -> bool:
+    """True quando a data traz ABT/BEF/AFT/EST/CAL/BET..AND ou similar.
+
+    Uma data aproximada nao serve para acusar impossibilidade: e um intervalo
+    disfarçado de ano. So serve para levantar suspeita.
+    """
+    return bool(date_value) and bool(QUALIFIER_RE.search(date_value))
 
 
 def clean_name(name: str) -> str:
@@ -261,11 +361,26 @@ def clean_name(name: str) -> str:
     return re.sub(r"\s+", " ", name.replace("/", " ")).strip()
 
 
-# nomes que sao na verdade lembretes/lixo, nao pessoas
-JUNK_NAME_RE = re.compile(
-    r"(\?{2,}|^\s*\?+\s*$|\bver\b|\bvide\b|\bconfirm|\bcheck\b|"
-    r"\bduplicad|\bdup\b|\bcorrigir\b|\bfixme\b|\btodo\b|\bunknown\b|"
-    r"\bdesconhec|\bsem\s+nome\b|\bliving\b|\bn/?a\b|\bxxx+\b|\btest[ae]\b)",
+# Nomes que sao o proprio lembrete, e nao uma pessoa.
+# Dois niveis de propositio:
+#   JUNK_WHOLE_RE so casa quando e o nome INTEIRO ("teste", "n/a", "living");
+#   JUNK_ANY_RE casa lembretes com contexto ("ver livro 2", "a confirmar").
+# Por que estreitar: a versao anterior tinha `\btest[ae]\b`, `\bver\b` e
+# `\bvide\b` soltos, e marcava como lixo os apelidos REAIS portugueses "Testa"
+# e "Vide". Falso positivo aqui e pior que falso negativo: um apelido marcado
+# como lixo suja a lista de muros, que e a lista de trabalho do investigador;
+# um lembrete que escapa custa uma linha a mais no relatorio.
+# NB: o padrao roda DEPOIS de clean_name(), que troca as barras do apelido
+# GEDCOM por espaco. Por isso "N/A" chega aqui como "N A", e o padrao tem de
+# aceitar o separador ja convertido.
+JUNK_WHOLE_RE = re.compile(
+    r"^(?:\?+|x{3,}|n\s*[/\s]?\s*a|teste?|test|unknown|desconhecid[oa]s?|"
+    r"sem\s+nome|living|vivo|viva|nn|n\.?\s*n\.?)$",
+    re.IGNORECASE,
+)
+JUNK_ANY_RE = re.compile(
+    r"(?:\?{2,}|\ba\s*confirmar\b|\bcorrigir\b|\bfixme\b|\btodo\b|"
+    r"\bduplicad[oa]\b|\bver\s+(?:livro|liv\.?|fl\.?|folio|nota|pag|pagina)\b)",
     re.IGNORECASE,
 )
 
@@ -274,16 +389,18 @@ def looks_like_junk_name(name: str) -> bool:
     n = clean_name(name)
     if not n:
         return False  # vazio e tratado a parte
-    if JUNK_NAME_RE.search(n):
+    if JUNK_WHOLE_RE.match(n) or JUNK_ANY_RE.search(n):
         return True
-    # so pontuacao / sem letras
-    if not re.search(r"[A-Za-zÀ-ɏ]", n):
+    # Sem nenhuma letra (so pontuacao/numeros) tambem e lixo. Usa isalpha() em
+    # vez de uma classe latina: a versao anterior exigia [A-Za-z...] e por isso
+    # classificava como lixo qualquer nome chines, cirilico, arabe ou grego.
+    if not any(ch.isalpha() for ch in n):
         return True
     return False
 
 
 # --------------------------------------------------------------------------- #
-# Auditoria                                                                     #
+# Reconciliacao das ligacoes de filiacao                                        #
 # --------------------------------------------------------------------------- #
 
 MAX_PLAUSIBLE_AGE = 115
@@ -291,15 +408,96 @@ MAX_PARENT_AGE = 70   # idade max plausivel de um pai/mae ao ter um filho
 MIN_PARENT_AGE = 11   # idade min plausivel
 
 
-def audit(indis: dict[str, Indi], fams: dict[str, Fam], encoding: str) -> dict:
+def build_child_links(indis: dict, fams: dict, report: dict) -> dict:
+    """Mapa xref -> list[ChildLink], unindo INDI.FAMC e FAM.CHIL.
+
+    Cada assimetria vai para report["link_inconsistencies"]. Reconciliar sem
+    reportar esconderia um defeito real do ficheiro; reportar sem reconciliar
+    deixaria o auditor a contradizer-se de seccao para seccao.
+    """
+    inc = report["link_inconsistencies"]
+    links: dict = {}
+    for xref, ind in indis.items():
+        links[xref] = []
+        for cl in ind.famc:
+            if cl.fam not in fams:
+                inc.append({"tipo": "FAMC aponta para FAM inexistente",
+                            "indi": xref, "fam": cl.fam, "line": cl.lineno})
+                continue
+            links[xref].append(cl)
+
+    # CHIL -> FAMC
+    for fam in fams.values():
+        for filho, lineno in fam.chil:
+            if filho not in indis:
+                inc.append({"tipo": "CHIL aponta para INDI inexistente",
+                            "fam": fam.xref, "indi": filho, "line": lineno})
+                continue
+            existente = next((c for c in links[filho] if c.fam == fam.xref), None)
+            if existente is None:
+                inc.append({"tipo": "FAM.CHIL sem FAMC reciproco no INDI",
+                            "fam": fam.xref, "indi": filho, "line": lineno})
+                links[filho].append(ChildLink(fam=fam.xref, origem="CHIL", lineno=lineno))
+            else:
+                existente.origem = "ambos"
+
+    # FAMC -> CHIL
+    for xref, cls in links.items():
+        for cl in cls:
+            if cl.origem == "FAMC":
+                fam = fams.get(cl.fam)
+                if fam is not None and not any(c == xref for c, _ in fam.chil):
+                    inc.append({"tipo": "FAMC sem CHIL reciproco na FAM",
+                                "indi": xref, "fam": cl.fam, "line": cl.lineno})
+
+    # HUSB/WIFE sem FAMS reciproco
+    for fam in fams.values():
+        for papel, conjuge in (("HUSB", fam.husb), ("WIFE", fam.wife)):
+            if not conjuge:
+                continue
+            if conjuge not in indis:
+                inc.append({"tipo": "%s aponta para INDI inexistente" % papel,
+                            "fam": fam.xref, "indi": conjuge, "line": fam.lineno})
+            elif fam.xref not in indis[conjuge].fams:
+                inc.append({"tipo": "%s sem FAMS reciproco no INDI" % papel,
+                            "fam": fam.xref, "indi": conjuge, "line": fam.lineno})
+    return links
+
+
+def parents_of(xref: str, links: dict, fams: dict, so_biologicos: bool = False) -> list:
+    """Pais de alguem, respeitando STAT disproven e, se pedido, so os biologicos."""
+    out = []
+    for cl in links.get(xref, []):
+        if not cl.conta_como_ascendencia:
+            continue
+        if so_biologicos and not cl.e_biologica:
+            continue
+        fam = fams.get(cl.fam)
+        if not fam:
+            continue
+        if fam.husb:
+            out.append(fam.husb)
+        if fam.wife:
+            out.append(fam.wife)
+    return out
+
+
+# --------------------------------------------------------------------------- #
+# Auditoria                                                                     #
+# --------------------------------------------------------------------------- #
+
+def audit(indis: dict, fams: dict, encoding: str, duplicados: list) -> dict:
     report: dict = {
         "summary": {
             "individuals": len(indis),
             "families": len(fams),
             "encoding": encoding,
         },
+        "link_inconsistencies": [],
+        "duplicate_xrefs": list(duplicados),
         "walls": [],
         "impossible_dates": [],
+        "suspicious_dates": [],
         "birt_as_death": [],
         "mojibake": [],
         "junk_nodes": [],
@@ -308,15 +506,19 @@ def audit(indis: dict[str, Indi], fams: dict[str, Fam], encoding: str) -> dict:
         "empty": {"no_name": [], "date_without_place": []},
     }
 
-    # --- muros: sem FAMC valida (sem pais conhecidos) ---
+    links = build_child_links(indis, fams, report)
+
+    # --- muros: ninguem aponta pais para esta pessoa ---
     for xref, ind in indis.items():
-        has_parents = False
-        for fc in ind.famc:
-            fam = fams.get(fc)
+        tem_pais = False
+        for cl in links.get(xref, []):
+            if not cl.conta_como_ascendencia:
+                continue
+            fam = fams.get(cl.fam)
             if fam and (fam.husb or fam.wife):
-                has_parents = True
+                tem_pais = True
                 break
-        if not has_parents:
+        if not tem_pais:
             report["walls"].append({
                 "id": xref,
                 "name": clean_name(ind.name) or "(sem nome)",
@@ -326,194 +528,187 @@ def audit(indis: dict[str, Indi], fams: dict[str, Fam], encoding: str) -> dict:
                 "line": ind.lineno,
             })
 
-    # --- datas impossiveis ---
-    for xref, ind in indis.items():
-        by = parse_year(ind.birt_date)
-        dy = parse_year(ind.deat_date)
-        if by is not None and dy is not None:
-            if by > dy:
-                report["impossible_dates"].append({
-                    "id": xref, "name": clean_name(ind.name),
-                    "issue": "nascimento depois do obito",
-                    "birth": ind.birt_date, "death": ind.deat_date,
-                    "line": ind.birt_lineno or ind.lineno,
-                })
-            else:
-                age = dy - by
-                if age < 0 or age > MAX_PLAUSIBLE_AGE:
-                    report["impossible_dates"].append({
-                        "id": xref, "name": clean_name(ind.name),
-                        "issue": f"idade ao morrer implausivel ({age} anos)",
-                        "birth": ind.birt_date, "death": ind.deat_date,
-                        "line": ind.deat_lineno or ind.lineno,
-                    })
+    def registar_data(destino_impossivel, item, aproximada):
+        """Data aproximada vira suspeita, nao impossibilidade."""
+        if aproximada:
+            item = dict(item)
+            item["issue"] += " (data aproximada: verificar, nao e prova)"
+            report["suspicious_dates"].append(item)
+        else:
+            destino_impossivel.append(item)
 
-    # filho mais velho que (ou implausivelmente proximo de) pai/mae
-    for fam in fams.values():
-        for parent_xref in (fam.husb, fam.wife):
-            if not parent_xref:
+    # --- datas impossiveis do proprio individuo ---
+    for xref, ind in indis.items():
+        by, dy = parse_year(ind.birt_date), parse_year(ind.deat_date)
+        if by is None or dy is None:
+            continue
+        aprox = date_is_approximate(ind.birt_date) or date_is_approximate(ind.deat_date)
+        if by > dy:
+            registar_data(report["impossible_dates"], {
+                "id": xref, "name": clean_name(ind.name),
+                "issue": "nascimento depois do obito",
+                "birth": ind.birt_date, "death": ind.deat_date,
+                "line": ind.birt_lineno or ind.lineno}, aprox)
+        else:
+            idade = dy - by
+            if idade < 0 or idade > MAX_PLAUSIBLE_AGE:
+                registar_data(report["impossible_dates"], {
+                    "id": xref, "name": clean_name(ind.name),
+                    "issue": "idade ao morrer implausivel (%d anos)" % idade,
+                    "birth": ind.birt_date, "death": ind.deat_date,
+                    "line": ind.deat_lineno or ind.lineno}, aprox)
+
+    # --- idade do pai/mae ao ter o filho (so ligacoes BIOLOGICAS) ---
+    for filho, cls in links.items():
+        child = indis.get(filho)
+        if not child:
+            continue
+        cy = parse_year(child.birt_date)
+        if cy is None:
+            continue
+        for cl in cls:
+            if not cl.conta_como_ascendencia or not cl.e_biologica:
                 continue
-            parent = indis.get(parent_xref)
-            if not parent:
+            fam = fams.get(cl.fam)
+            if not fam:
                 continue
-            py = parse_year(parent.birt_date)
-            if py is None:
-                continue
-            for child_xref in fam.chil:
-                child = indis.get(child_xref)
-                if not child:
+            for pai_xref in (fam.husb, fam.wife):
+                pai = indis.get(pai_xref) if pai_xref else None
+                if not pai:
                     continue
-                cy = parse_year(child.birt_date)
-                if cy is None:
+                py = parse_year(pai.birt_date)
+                if py is None:
                     continue
                 gap = cy - py
+                aprox = date_is_approximate(child.birt_date) or date_is_approximate(pai.birt_date)
                 if gap < MIN_PARENT_AGE:
-                    report["impossible_dates"].append({
-                        "id": child_xref, "name": clean_name(child.name),
-                        "issue": (
-                            f"filho nasce {gap} anos depois do pai/mae "
-                            f"{parent_xref} (implausivel)"
-                        ),
-                        "birth": child.birt_date,
-                        "parent_birth": parent.birt_date,
-                        "line": child.birt_lineno or child.lineno,
-                    })
+                    registar_data(report["impossible_dates"], {
+                        "id": filho, "name": clean_name(child.name),
+                        "issue": ("filho nasce %d ano(s) depois do pai/mae %s "
+                                  "(minimo plausivel: %d)" % (gap, pai_xref, MIN_PARENT_AGE)),
+                        "birth": child.birt_date, "parent_birth": pai.birt_date,
+                        "line": child.birt_lineno or child.lineno}, aprox)
+                elif gap > MAX_PARENT_AGE:
+                    registar_data(report["impossible_dates"], {
+                        "id": filho, "name": clean_name(child.name),
+                        "issue": ("pai/mae %s teria %d anos ao nascer este filho "
+                                  "(maximo plausivel: %d)" % (pai_xref, gap, MAX_PARENT_AGE)),
+                        "birth": child.birt_date, "parent_birth": pai.birt_date,
+                        "line": child.birt_lineno or child.lineno}, aprox)
 
     # --- BIRT que parece ser uma data de OBITO ---
-    # Erro comum de digitacao/extracao: a data do obito acaba lancada no campo
-    # BIRT. Sinais: (a) o "nascimento" do pai/mae e POSTERIOR ao do filho mais
-    # velho; (b) o "nascimento" cai depois (ou quase em cima) do obito da
-    # propria pessoa. Em ambos os casos o ano do BIRT costuma bater com um
-    # obito real. So-sinalizar; o humano confirma no assento.
-    earliest_child_year: dict[str, int] = {}
-    for fam in fams.values():
-        years = [
-            parse_year(indis[c].birt_date)
-            for c in fam.chil
-            if c in indis and parse_year(indis[c].birt_date) is not None
-        ]
-        if not years:
+    filho_mais_velho: dict = {}
+    for filho, cls in links.items():
+        child = indis.get(filho)
+        cy = parse_year(child.birt_date) if child else None
+        if cy is None:
             continue
-        first = min(years)  # type: ignore[type-var]
-        for parent_xref in (fam.husb, fam.wife):
-            if parent_xref and parent_xref in indis:
-                prev = earliest_child_year.get(parent_xref)
-                earliest_child_year[parent_xref] = (
-                    first if prev is None else min(prev, first)
-                )
+        for cl in cls:
+            # So filiacao BIOLOGICA: um pai adotivo pode legitimamente ser mais
+            # novo que o filho, e isso nao e indicio de data trocada.
+            if not cl.conta_como_ascendencia or not cl.e_biologica:
+                continue
+            fam = fams.get(cl.fam)
+            if not fam:
+                continue
+            for pai_xref in (fam.husb, fam.wife):
+                if pai_xref and pai_xref in indis:
+                    anterior = filho_mais_velho.get(pai_xref)
+                    filho_mais_velho[pai_xref] = cy if anterior is None else min(anterior, cy)
 
-    flagged_birt_as_death: set[str] = set()
     for xref, ind in indis.items():
         by = parse_year(ind.birt_date)
         if by is None:
             continue
-        reasons: list[str] = []
-        # (a) nasce depois do proprio filho mais velho -> BIRT e provavel obito
-        ecy = earliest_child_year.get(xref)
+        razoes = []
+        ecy = filho_mais_velho.get(xref)
         if ecy is not None and by > ecy + MIN_PARENT_AGE:
-            reasons.append(
-                f"BIRT ({by}) posterior ao filho mais velho ({ecy}); "
-                f"a data parece ser de obito"
-            )
-        # (b) nasce depois/quase em cima do proprio obito
+            razoes.append("BIRT (%d) posterior ao filho mais velho (%d); a data parece ser de obito"
+                          % (by, ecy))
         dy = parse_year(ind.deat_date)
-        if dy is not None and by >= dy:
-            reasons.append(
-                f"BIRT ({by}) >= DEAT ({dy}); campos possivelmente trocados"
-            )
-        if reasons:
-            flagged_birt_as_death.add(xref)
+        if dy is not None and by > dy:
+            razoes.append("BIRT (%d) > DEAT (%d); campos possivelmente trocados" % (by, dy))
+        if razoes:
             report["birt_as_death"].append({
-                "id": xref,
-                "name": clean_name(ind.name),
-                "birth": ind.birt_date,
-                "death": ind.deat_date,
-                "earliest_child_birth": ecy,
-                "reasons": reasons,
-                "line": ind.birt_lineno or ind.lineno,
-            })
+                "id": xref, "name": clean_name(ind.name),
+                "birth": ind.birt_date, "death": ind.deat_date,
+                "earliest_child_birth": ecy, "reasons": razoes,
+                "line": ind.birt_lineno or ind.lineno})
 
     # --- mojibake ---
     for xref, ind in indis.items():
-        for label, val in (("name", ind.name),
-                           ("birth_place", ind.birt_place),
+        for label, val in (("name", ind.name), ("birth_place", ind.birt_place),
                            ("death_place", ind.deat_place)):
             if val and MOJIBAKE_RE.search(val):
                 report["mojibake"].append({
-                    "id": xref, "field": label,
-                    "raw": val, "suggested": fix_mojibake(val),
-                    "line": ind.lineno,
-                })
+                    "id": xref, "field": label, "raw": val,
+                    "suggested": fix_mojibake(val), "line": ind.lineno})
 
     # --- nos-lixo ---
     for xref, ind in indis.items():
         if looks_like_junk_name(ind.name):
             report["junk_nodes"].append({
                 "id": xref, "name": ind.name,
-                "reason": "nome parece lembrete/lixo", "line": ind.lineno,
-            })
+                "reason": "nome parece lembrete/lixo", "line": ind.lineno})
             continue
-        orphan = (
-            not clean_name(ind.name)
-            and not ind.birt_date and not ind.deat_date
-            and not ind.famc and not ind.fams
-        )
-        if orphan:
+        orfao = (not clean_name(ind.name) and not ind.birt_date and not ind.deat_date
+                 and not links.get(xref) and not ind.fams)
+        if orfao:
             report["junk_nodes"].append({
                 "id": xref, "name": ind.name,
-                "reason": "INDI orfao (sem nome/datas/familia)", "line": ind.lineno,
-            })
+                "reason": "INDI orfao (sem nome/datas/familia)", "line": ind.lineno})
 
     # --- duplicados candidatos (assinatura nome + ano de nascimento) ---
-    sig_map: dict[tuple[str, Optional[int]], list[str]] = {}
+    sig_map: dict = {}
     for xref, ind in indis.items():
-        name = clean_name(fix_mojibake(ind.name)).lower()
-        if not name:
+        nome = clean_name(fix_mojibake(ind.name)).lower()
+        ano = parse_year(ind.birt_date)
+        if not nome or ano is None:
             continue
-        sig = (name, parse_year(ind.birt_date))
-        if sig[1] is None:
-            continue  # sem data, assinatura fraca demais: nao agrupa
-        sig_map.setdefault(sig, []).append(xref)
-    for (name, year), ids in sig_map.items():
+        sig_map.setdefault((nome, ano), []).append(xref)
+    for (nome, ano), ids in sig_map.items():
         if len(ids) > 1:
-            report["duplicates"].append({
-                "name": name, "birth_year": year, "ids": ids,
-            })
+            report["duplicates"].append({"name": nome, "birth_year": ano, "ids": ids})
 
-    # --- loops de ascendencia ---
-    def parents_of(xref: str) -> list[str]:
-        ind = indis.get(xref)
-        if not ind:
-            return []
-        out: list[str] = []
-        for fc in ind.famc:
-            fam = fams.get(fc)
-            if not fam:
-                continue
-            if fam.husb:
-                out.append(fam.husb)
-            if fam.wife:
-                out.append(fam.wife)
-        return out
-
-    seen_loops: set[frozenset] = set()
-    for start in indis:
-        stack = [(start, [start])]
-        visited_local: set[str] = set()
-        while stack:
-            node, path = stack.pop()
-            for p in parents_of(node):
-                if p == start or p in path:
-                    cycle = frozenset(path + [p])
-                    if cycle not in seen_loops:
-                        seen_loops.add(cycle)
+    # --- loops de ascendencia (DFS iterativa de tres cores, O(V+E)) ---
+    # A versao anterior partia de CADA individuo copiando a lista de caminho, o
+    # que era quadratico e ainda incluia no "ciclo" descendentes que so levavam
+    # ate ele (D -> A -> B -> A reportava D como parte do ciclo).
+    BRANCO, CINZENTO, PRETO = 0, 1, 2
+    cor = {x: BRANCO for x in indis}
+    ciclos_vistos = set()
+    for inicio in indis:
+        if cor[inicio] != BRANCO:
+            continue
+        pilha = [(inicio, iter(parents_of(inicio, links, fams)))]
+        caminho = [inicio]
+        cor[inicio] = CINZENTO
+        while pilha:
+            no, it = pilha[-1]
+            avancou = False
+            for p in it:
+                if p not in cor:
+                    continue
+                if cor[p] == CINZENTO:
+                    # Ciclo: so os nos entre a ocorrencia anterior de p e o topo.
+                    i = caminho.index(p)
+                    ciclo = caminho[i:] + [p]
+                    chave = frozenset(ciclo)
+                    if chave not in ciclos_vistos:
+                        ciclos_vistos.add(chave)
                         report["ancestry_loops"].append({
-                            "cycle": path + [p],
-                            "note": "ancestral aponta de volta (ligacao errada?)",
-                        })
-                elif p not in visited_local:
-                    visited_local.add(p)
-                    stack.append((p, path + [p]))
+                            "cycle": ciclo,
+                            "note": "ancestral aponta de volta (ligacao errada?)"})
+                elif cor[p] == BRANCO:
+                    cor[p] = CINZENTO
+                    caminho.append(p)
+                    pilha.append((p, iter(parents_of(p, links, fams))))
+                    avancou = True
+                    break
+            if not avancou:
+                cor[no] = PRETO
+                pilha.pop()
+                caminho.pop()
 
     # --- vazios ---
     for xref, ind in indis.items():
@@ -522,13 +717,11 @@ def audit(indis: dict[str, Indi], fams: dict[str, Fam], encoding: str) -> dict:
         if ind.birt_date and not ind.birt_place:
             report["empty"]["date_without_place"].append({
                 "id": xref, "event": "BIRT", "date": ind.birt_date,
-                "line": ind.birt_lineno or ind.lineno,
-            })
+                "line": ind.birt_lineno or ind.lineno})
         if ind.deat_date and not ind.deat_place:
             report["empty"]["date_without_place"].append({
                 "id": xref, "event": "DEAT", "date": ind.deat_date,
-                "line": ind.deat_lineno or ind.lineno,
-            })
+                "line": ind.deat_lineno or ind.lineno})
 
     return report
 
@@ -540,89 +733,78 @@ def audit(indis: dict[str, Indi], fams: dict[str, Fam], encoding: str) -> dict:
 def print_human(report: dict, walls_only: bool = False) -> None:
     s = report["summary"]
     if walls_only:
-        print(f"# Muros (sem pais conhecidos): {len(report['walls'])}")
+        print("# Muros (sem pais conhecidos): %d" % len(report["walls"]))
         for w in report["walls"]:
             place = w["birth_place"] or ("(LUGAR EM FALTA)" if w["place_missing"] else "")
-            date = w["birth_date"] or "s/d"
-            print(f"  {w['id']:<10} {w['name']:<40} n. {date}  {place}")
+            print("  %-10s %-40s n. %s  %s"
+                  % (w["id"], w["name"], w["birth_date"] or "s/d", place))
         return
 
     print("=" * 64)
     print("AUDITORIA GEDCOM")
     print("=" * 64)
-    print(f"  Individuos (INDI): {s['individuals']}")
-    print(f"  Familias  (FAM):   {s['families']}")
-    print(f"  Encoding detetado: {s['encoding']}")
+    print("  Individuos (INDI): %d" % s["individuals"])
+    print("  Familias  (FAM):   %d" % s["families"])
+    print("  Encoding detetado: %s" % s["encoding"])
     print()
 
-    def section(title: str, items: list, fmt) -> None:
-        print(f"--- {title}: {len(items)} ---")
+    def section(title, items, fmt):
+        print("--- %s: %d ---" % (title, len(items)))
         for it in items[:200]:
             print("  " + fmt(it))
         if len(items) > 200:
-            print(f"  ... (+{len(items) - 200} mais; use --json para tudo)")
+            print("  ... (+%d mais; use --json para tudo)" % (len(items) - 200))
         print()
 
-    section(
-        "MUROS (sem pais conhecidos = alvos de pesquisa)",
-        report["walls"],
-        lambda w: (
-            f"{w['id']:<10} {w['name']:<36} n. {w['birth_date'] or 's/d'} "
-            f"{w['birth_place'] or ('[LUGAR EM FALTA]' if w['place_missing'] else '')}"
-        ),
-    )
-    section(
-        "DATAS IMPOSSIVEIS",
-        report["impossible_dates"],
-        lambda d: f"{d['id']:<10} {d.get('name','')[:30]:<30} {d['issue']} (linha {d['line']})",
-    )
-    section(
-        "BIRT QUE PARECE OBITO (data de obito lancada no nascimento?)",
-        report["birt_as_death"],
-        lambda b: (
-            f"{b['id']:<10} {b.get('name','')[:30]:<30} "
-            f"{'; '.join(b['reasons'])} (linha {b['line']})"
-        ),
-    )
-    section(
-        "MOJIBAKE (encoding partido)",
-        report["mojibake"],
-        lambda m: f"{m['id']:<10} {m['field']:<12} {m['raw']!r} -> {m['suggested']!r}",
-    )
-    section(
-        "NOS-LIXO (rever)",
-        report["junk_nodes"],
-        lambda j: f"{j['id']:<10} {j['reason']:<40} {j['name']!r} (linha {j['line']})",
-    )
-    section(
-        "DUPLICADOS CANDIDATOS",
-        report["duplicates"],
-        lambda d: f"{d['name']} ({d['birth_year']}): {', '.join(d['ids'])}",
-    )
-    section(
-        "LOOPS DE ASCENDENCIA",
-        report["ancestry_loops"],
-        lambda c: " -> ".join(c["cycle"]),
-    )
-    section(
-        "INDIVIDUOS SEM NOME",
-        report["empty"]["no_name"],
-        lambda e: f"{e['id']} (linha {e['line']})",
-    )
-    section(
-        "EVENTOS COM DATA E SEM LUGAR",
-        report["empty"]["date_without_place"],
-        lambda e: f"{e['id']:<10} {e['event']} {e['date']} (linha {e['line']})",
-    )
+    section("XREF DUPLICADO (o segundo registo sobrepoe o primeiro)",
+            report["duplicate_xrefs"],
+            lambda d: "%s %s definido na linha %s e outra vez na linha %s"
+                      % (d["tipo"], d["xref"], d["line_anterior"], d["line"]))
+    section("LIGACOES ASSIMETRICAS (FAMC x CHIL, HUSB/WIFE x FAMS)",
+            report["link_inconsistencies"],
+            lambda i: "%-38s indi=%-10s fam=%-10s (linha %s)"
+                      % (i["tipo"], i.get("indi", "-"), i.get("fam", "-"), i.get("line", "?")))
+    section("MUROS (sem pais conhecidos = alvos de pesquisa)", report["walls"],
+            lambda w: "%-10s %-36s n. %s %s"
+                      % (w["id"], w["name"], w["birth_date"] or "s/d",
+                         w["birth_place"] or ("[LUGAR EM FALTA]" if w["place_missing"] else "")))
+    section("DATAS IMPOSSIVEIS", report["impossible_dates"],
+            lambda d: "%-10s %-30s %s (linha %s)"
+                      % (d["id"], d.get("name", "")[:30], d["issue"], d["line"]))
+    section("DATAS SUSPEITAS (o mesmo teste, mas sobre data APROXIMADA)",
+            report["suspicious_dates"],
+            lambda d: "%-10s %-30s %s (linha %s)"
+                      % (d["id"], d.get("name", "")[:30], d["issue"], d["line"]))
+    section("BIRT QUE PARECE OBITO (data de obito lancada no nascimento?)",
+            report["birt_as_death"],
+            lambda b: "%-10s %-30s %s (linha %s)"
+                      % (b["id"], b.get("name", "")[:30], "; ".join(b["reasons"]), b["line"]))
+    section("MOJIBAKE (encoding partido)", report["mojibake"],
+            lambda m: "%-10s %-12s %r -> %r" % (m["id"], m["field"], m["raw"], m["suggested"]))
+    section("NOS-LIXO (rever)", report["junk_nodes"],
+            lambda j: "%-10s %-40s %r (linha %s)" % (j["id"], j["reason"], j["name"], j["line"]))
+    section("DUPLICADOS CANDIDATOS", report["duplicates"],
+            lambda d: "%s (%s): %s" % (d["name"], d["birth_year"], ", ".join(d["ids"])))
+    section("LOOPS DE ASCENDENCIA", report["ancestry_loops"],
+            lambda c: " -> ".join(c["cycle"]))
+    section("INDIVIDUOS SEM NOME", report["empty"]["no_name"],
+            lambda e: "%s (linha %s)" % (e["id"], e["line"]))
+    section("EVENTOS COM DATA E SEM LUGAR", report["empty"]["date_without_place"],
+            lambda e: "%-10s %s %s (linha %s)" % (e["id"], e["event"], e["date"], e["line"]))
 
     print("Nota: este auditor NAO corrige nada. Volte ao assento original")
     print("(SOUR/imagem) para decidir cada correcao. Ver references/07-gedcom.md.")
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv=None) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):  # pragma: no cover
+            pass
+
     ap = argparse.ArgumentParser(
-        description="Audita um ficheiro GEDCOM (.ged). So-leitura."
-    )
+        description="Audita um ficheiro GEDCOM (.ged). So-leitura.")
     ap.add_argument("gedcom", help="caminho para o ficheiro .ged")
     ap.add_argument("--json", action="store_true", help="saida em JSON")
     ap.add_argument("--walls", action="store_true",
@@ -632,11 +814,19 @@ def main(argv: Optional[list[str]] = None) -> int:
     try:
         text, encoding = read_gedcom(args.gedcom)
     except OSError as e:
-        print(f"erro a abrir {args.gedcom!r}: {e}", file=sys.stderr)
+        sys.stderr.write("erro a abrir %r: %s\n" % (args.gedcom, e))
         return 2
 
-    indis, fams = parse(text)
-    report = audit(indis, fams, encoding)
+    indis, fams, duplicados = parse(text)
+    if not indis and not fams:
+        sys.stderr.write(
+            "erro: nenhum registo INDI ou FAM encontrado em %r (encoding lido: %s).\n"
+            "      O ficheiro pode nao ser um GEDCOM, estar noutro encoding, ou estar\n"
+            "      truncado. Um relatorio vazio aqui seria enganador, por isso e erro.\n"
+            % (args.gedcom, encoding))
+        return 2
+
+    report = audit(indis, fams, encoding, duplicados)
 
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
