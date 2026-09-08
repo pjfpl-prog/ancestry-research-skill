@@ -59,3 +59,19 @@ os documentos e dados de implantação no projeto privado, fora da skill.
 - Legende datas aproximadas/declaradas e campos ausentes sem sugerir falecimento.
   Preserve versões anteriores e entregue um pacote coerente, sem obrigar o usuário a
   recompor arquivos já organizados no projeto.
+
+## 4. Fechamento de novas entradas numa projeção privada
+
+Quando o projeto mantém acervo, Gramps e site privado, trate cada destino explicitamente:
+1. Preserve original, fonte, classificação por afirmação e hash; confira os perfis por IDs ativos.
+2. Acrescente fontes, notas e mídias com o procedimento transacional documentado na instalação.
+   Protocolo, índice, candidato e negativa delimitada não criam fatos vitais. Documento contextual
+   sem familiar identificado entra no acervo de contexto, não num evento de viagem.
+3. Execute a sincronização imediata, além de qualquer rotina periódica. Verifique fonte no perfil,
+   mídia/caminho/checksum e snapshot; mantenha os bloqueios de visitantes e contas pendentes.
+4. Guarde recibo e backups antes/depois e atualize índice, diário e manifestos afetados.
+   Em falha, declare o destino pendente e retome o mesmo lote idempotente, sem duplicar fontes.
+
+Não edite diretamente o catálogo derivado para simular sincronização. Não aprove sugestões
+familiares pendentes por causa desta rotina. Correções editoriais de notas só se replicam quando
+o texto corrigido também existe na base; logs técnicos e credenciais não são fontes genealógicas.

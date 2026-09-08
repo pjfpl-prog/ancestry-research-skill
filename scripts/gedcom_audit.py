@@ -1,53 +1,17 @@
 #!/usr/bin/env python3
-"""gedcom_audit.py - auditor de ficheiros GEDCOM (.ged) para a skill de genealogia.
+"""Read-only GEDCOM audit; never modify the input (see references/07-gedcom.md).
 
-So-leitura: NUNCA altera o ficheiro de entrada. Reporta os defeitos tipicos de
-extracao automatica (ver references/07-gedcom.md) para que um humano decida a
-correcao. Sem dependencias externas: usa apenas a biblioteca-padrao do Python 3.
+Report encoding problems, candidate duplicates, missing data, ancestry cycles,
+asymmetric links and chronological anomalies for human review, not automatic repair.
+One child-link map reconciles FAMC and CHIL while retaining their provenance:
+asymmetry remains an error even when a relationship can be read from either side.
+STAT disproven never supplies ancestry. Non-biological PEDI links count as known
+parents, but are excluded from biological age checks. Approximate dates support
+warnings, not categorical impossibility. These distinctions prevent the auditor
+from inventing ancestry or turning uncertain dates into contradictions.
 
-Defeitos cacados:
-  - ligacoes assimetricas: FAM.CHIL sem FAMC reciproco e vice-versa, ponteiros
-    para registos inexistentes, XREF duplicado
-  - muros: individuos sem pais conhecidos -> lista de trabalho
-  - datas impossiveis: nascimento depois do obito; idade ao morrer negativa ou > 115;
-    filho nascido cedo demais ou tarde demais em relacao ao pai/mae
-  - BIRT que parece ser obito: nascimento POSTERIOR ao(s) filho(s) ou
-    suspeitosamente proximo do obito -> tipico de data de obito lancada no campo BIRT
-  - mojibake / encoding partido (padrao 'A~'/'A^' do UTF-8 lido como latin-1)
-  - nos-lixo: nomes-lembrete ('ver livro 2', '??', etc.) e INDI orfaos de tudo
-  - duplicados candidatos: mesma assinatura nome + data de nascimento
-  - loops de ascendencia (alguem e seu proprio antepassado)
-  - vazios: individuos sem nome; eventos com data e sem lugar
-
---- COMO ESTE AUDITOR TRATA A FILIACAO --------------------------------------
-No GEDCOM 5.5.1 a filiacao aparece dos DOIS lados: `INDI.FAMC` aponta para a
-familia onde a pessoa e filho, e `FAM.CHIL` aponta de volta para o filho. Os
-dois deviam concordar; em ficheiros de extracao automatica muitas vezes nao
-concordam.
-
-A versao anterior deste auditor lia um lado para uns testes e o outro lado para
-outros, e por isso conseguia, no MESMO relatorio, listar alguem como "sem pais
-conhecidos" e ao mesmo tempo acusar que essa pessoa "nasceu antes do pai".
-
-Aqui a regra e explicita:
-  1. Toda ligacao de filiacao, venha de FAMC ou de CHIL, entra num mapa unico,
-     COM a origem registada.
-  2. Toda assimetria entra em `link_inconsistencies`. Reconciliar nao apaga o
-     defeito: o ficheiro continua partido e o utilizador precisa de saber.
-  3. `FAMC` pode trazer `PEDI` (birth/adopted/foster/sealing) e `STAT`
-     (challenged/disproven/proven). Ligacao com `STAT disproven` NAO conta como
-     ascendencia: o proprio ficheiro diz que ela foi refutada. Ligacao nao
-     biologica (adopted/foster/sealing) conta para "tem pais", mas fica de fora
-     dos testes de plausibilidade BIOLOGICA de idade.
-Sem isso, "reconciliar" viraria inventar ascendencia que o ficheiro nega.
-
-NB: este ficheiro evita acentos no codigo-fonte de proposito (placeholders/comentarios
-ASCII); os dados do GEDCOM, esses, sao tratados no encoding correto.
-
-Uso:
-    python scripts/gedcom_audit.py arvore.ged
-    python scripts/gedcom_audit.py arvore.ged --json
-    python scripts/gedcom_audit.py arvore.ged --walls
+Uses only the Python standard library; run --help for output and --walls options.
+Source comments are ASCII; names and input data retain their original encoding.
 """
 from __future__ import annotations
 
@@ -57,10 +21,6 @@ import re
 import sys
 from dataclasses import dataclass, field
 from typing import Optional
-
-# --------------------------------------------------------------------------- #
-# Leitura do ficheiro com deteccao de encoding                                 #
-# --------------------------------------------------------------------------- #
 
 # Sequencias tipicas de mojibake (UTF-8 lido como latin-1/cp1252).
 MOJIBAKE_RE = re.compile(r"[ÃÂ][\x80-¿]")
@@ -120,10 +80,6 @@ def fix_mojibake(s: str) -> str:
     except (UnicodeEncodeError, UnicodeDecodeError):
         return s
 
-
-# --------------------------------------------------------------------------- #
-# Parsing GEDCOM                                                               #
-# --------------------------------------------------------------------------- #
 
 LINE_RE = re.compile(r"^\s*(\d+)\s+(@[^@]+@\s+)?(\S+)(?:\s(.*))?$")
 
@@ -335,10 +291,6 @@ def parse(text: str) -> tuple:
     return indis, fams, duplicados
 
 
-# --------------------------------------------------------------------------- #
-# Utilidades de data e nome                                                     #
-# --------------------------------------------------------------------------- #
-
 def parse_year(date_value: str) -> Optional[int]:
     """Extrai o ano (int) de uma DATE GEDCOM, tolerando qualificadores."""
     if not date_value:
@@ -398,10 +350,6 @@ def looks_like_junk_name(name: str) -> bool:
         return True
     return False
 
-
-# --------------------------------------------------------------------------- #
-# Reconciliacao das ligacoes de filiacao                                        #
-# --------------------------------------------------------------------------- #
 
 MAX_PLAUSIBLE_AGE = 115
 MAX_PARENT_AGE = 70   # idade max plausivel de um pai/mae ao ter um filho
@@ -481,10 +429,6 @@ def parents_of(xref: str, links: dict, fams: dict, so_biologicos: bool = False) 
             out.append(fam.wife)
     return out
 
-
-# --------------------------------------------------------------------------- #
-# Auditoria                                                                     #
-# --------------------------------------------------------------------------- #
 
 def audit(indis: dict, fams: dict, encoding: str, duplicados: list) -> dict:
     report: dict = {
@@ -725,10 +669,6 @@ def audit(indis: dict, fams: dict, encoding: str, duplicados: list) -> dict:
 
     return report
 
-
-# --------------------------------------------------------------------------- #
-# Apresentacao                                                                  #
-# --------------------------------------------------------------------------- #
 
 def print_human(report: dict, walls_only: bool = False) -> None:
     s = report["summary"]

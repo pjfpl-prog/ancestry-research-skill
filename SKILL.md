@@ -7,6 +7,19 @@ description: Pesquisar árvores genealógicas e resolver filiações com fontes 
 
 Avance uma ligação documentada por vez, a partir de uma pessoa conhecida.
 
+## Entrada operacional
+
+Para executar uma rodada, leia primeiro [execução guiada](references/14-execucao-guiada.md)
+e preencha a [ficha de operação](templates/operation_card.template.md) no acervo do projeto.
+Depois abra apenas a receita pertinente em [receitas operacionais](references/15-receitas-operacionais.md):
+A DigitArq; B livros/inventários; C FamilySearch; D documentos/imagens; E datas/entrevistas;
+F Gramps/auditoria/desenho; G correspondência/imigração; H APIs/aprendizado;
+I CRAV/reprodução/orçamento.
+O ciclo abaixo orienta a pesquisa; o roteiro detalha as verificações antes de cada avanço.
+
+Modelos compactos executam unidades verificáveis; leitura ou identidade ambígua pede
+revisão da evidência. Preserve pendências e continue as partes independentes autorizadas.
+
 ## Ciclo de pesquisa
 
 ### 1. Definir alvo, âncoras e pergunta
@@ -28,12 +41,15 @@ Frentes independentes são possíveis dentro do pedido; cada uma deve ter recort
 - **Imprensa:** hemerotecas da Biblioteca Nacional brasileira e portuguesa.
 
 Para imigração, consulte [o roteiro](references/10-imigracao-portugal-brasil.md).
-Para recuperar URLs antigos ou avaliar catálogos por API, use
+Para recuperar links antigos ou avaliar catálogos por API, use
 [APIs públicas complementares](references/13-apis-publicas-e-arquivo-web.md).
 
 Leia os guias de [DigitArq](references/01-portugal-torre-do-tombo-digitarq.md),
 [FamilySearch](references/02-familysearch.md) ou [outros arquivos](references/08-outros-arquivos.md)
 conforme a frente. Não extrapole lacuna de uma entrada do catálogo para todos os acervos.
+
+Para pedir reproduções ou orientação aos arquivos DGLAB, consulte
+[o fluxo CRAV](references/16-crav-pedidos-reproducao.md); protocolo de pedido não é prova do ato.
 
 ### 3. Procurar o documento que responde à pergunta
 
@@ -42,13 +58,9 @@ natal, prefira o próprio nascimento/batismo contemporâneo, distinguindo esses 
 Óbitos, habilitações e notariais complementam as âncoras; o informante e a proximidade
 do evento importam. [Tipos de registro](references/04-tipos-de-registo.md).
 
-- **DigitArq:** `python scripts/digitarq.py search "TERMO" --json` e
-  `python scripts/digitarq.py details {GUID} --json`. A ficha é descrição de catálogo,
-  não leitura da imagem. A busca pagina até `--max` (teto 500): preserve `total`,
-  `returned` e `notes`. Para nomes, relevância favorece descoberta, mas pode repetir ou
-  saltar resultados; para cotas, use `--sort reference_code`. A ordenação não congela
-  o acervo. `--with-images` filtra no servidor; `filesCount` conta ficheiros, não prova
-  conteúdo ou acesso. Confirme a disponibilidade no livro.
+- **DigitArq:** ficha é descrição de catálogo, não leitura da imagem. Preserve total,
+  returned, notes e IDs únicos; limite, ordenação e filesCount não provam cobertura
+  completa nem acesso ao conteúdo. Use a receita A e confirme disponibilidade no livro.
 - **FamilySearch:** use a sessão autorizada; descubra perfis/abas em vez de assumir
   nome de perfil. Comece por fontes vinculadas e sugestões dos perfis pertinentes.
   Distinga árvore editada, índice, OCR, catálogo e imagem.
@@ -64,21 +76,13 @@ do evento importam. [Tipos de registro](references/04-tipos-de-registo.md).
 
 ### 3b. Livro sem índice
 
-Só varra um livro pertinente e acessível. Procure índice interno e delimite anos/fólios.
-Use `python scripts/digitarq.py images {GUID} --start 0 --max 10 --json` para um lote.
-`--start` é de base zero e envia `fromIndex`. Confirme o índice retornado antes de usar
-o lote; o script rejeita índice ausente, inválido ou diferente do pedido. Compare IDs
-entre lotes e avance pelo índice recebido mais a quantidade recebida, não pelo limite
-pedido. A posição da imagem não é fólio. Confira cobertura conforme o guia DigitArq
-(§5.1); lotes de 10–13 imagens são um ponto de partida, ajustável à densidade.
-
-Quando houver trabalho independente e delegação permitida, distribua lotes entre
-subagentes; caso contrário, faça a mesma leitura localmente. Cada lote devolve cobertura,
-fólio/fileId, transcrição, confiança e candidatos/homônimos. O limite de pedidos é por processo: conte a carga conjunta sobre o arquivo e ajuste
-concorrência e pausas. O coordenador reconcilia os
-achados, sem aceitar pontuação automática como prova. O
-[protocolo](references/06-varredura-multiagente.md) e o
-[template](templates/scan_workflow.example.js) são adaptáveis, não automação pronta.
+Só varra livro pertinente e acessível. Valide início, IDs únicos e lacunas antes de aceitar
+cada lote; posição da imagem não é fólio e download não é leitura.
+Siga a receita B de [execução operacional](references/15-receitas-operacionais.md)
+e a validação de paginação do [guia DigitArq](references/01-portugal-torre-do-tombo-digitarq.md).
+Delegue lotes somente quando permitido e houver trabalho independente; cada leitor
+devolve cobertura, fileId/fólio, transcrição, confiança e candidatos. Caso contrário,
+leia localmente. [Protocolo de lotes](references/06-varredura-multiagente.md).
 
 ### 4. Ler a imagem e preservar o recebido
 
@@ -127,20 +131,13 @@ Gramps ou uma visualização autorizada, use [migração e manutenção](referen
 
 ## Ferramentas especializadas
 
-Confira `--help`; instale só dependências necessárias. Saídas ficam no projeto.
-
-- `scripts/digitarq.py`: search, details, images e download público. Downloads recusam
-  conteúdo não-imagem e sobrescrita sem `--force`; preservam arquivo anterior em falha.
-- `scripts/image_tools.py`: download, crop, enhance, folio e split em derivados.
-- `scripts/gedcom_audit.py arvore.ged --walls --json`: auditoria somente leitura;
-  preserva tratamento de FAMC/CHIL, datas aproximadas, PEDI e STAT disproven.
-  [GEDCOM](references/07-gedcom.md): exportação opcional, nunca requisito de pesquisa.
-- `scripts/notify.py`: notificador opcional; use só destino autorizado e credenciais
-  protegidas. A versão atual redige tokens em erros; não configure por estar incluída.
-- `references/13-apis-publicas-e-arquivo-web.md`: recuperação delimitada de URLs no Arquivo.pt
-  e avaliação OAI-PMH. HTTP 200 ou metadado não são prova genealógica.
-- [Inquisição](references/05-inquisicao-cristao-novo.md): só quando pertinente;
-  categoria histórica não presume identidade.
+Confira `--help` da versão instalada; saídas ficam no acervo do projeto.
+- `scripts/digitarq.py`: search, details, images e download público; não sobrescreva originais.
+- `scripts/image_tools.py`: crop, enhance, folio e split em derivados.
+- `scripts/gedcom_audit.py`: auditoria somente leitura de exportação, não prova genealógica.
+- `scripts/notify.py`: opcional, apenas para destino autorizado e autenticação protegida.
+- [GEDCOM](references/07-gedcom.md) é opcional; [Inquisição](references/05-inquisicao-cristao-novo.md)
+  só quando pertinente, sem presumir identidade por categoria histórica.
 
 ## Acesso, privacidade e escopo
 

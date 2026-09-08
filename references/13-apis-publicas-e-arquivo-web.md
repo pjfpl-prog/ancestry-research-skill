@@ -85,7 +85,8 @@ Fluxo:
 
 1. `ListIdentifiers` com conjunto e formato confirmados.
 2. Leia poucos registros com `GetRecord`.
-3. Inspecione erros XML mesmo quando o HTTP for 200.
+3. Inspecione erros XML mesmo quando o HTTP for 200, cabeçalhos de registros apagados e
+   pertença ao conjunto solicitado.
 4. Confira cota, nível descritivo, instituição, datas, assunto, conteúdo e links digitais.
 5. Registre `resumptionToken`; token não vazio significa que a listagem é parcial.
 

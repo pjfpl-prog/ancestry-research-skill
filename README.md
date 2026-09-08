@@ -43,6 +43,8 @@ agente a usar as suas próprias contas de arquivo.
 - **FamilySearch** — busca de texto completo (OCR/IA), registos indexados e catálogo
   (sessão autorizada, conforme a coleção); exportação GEDCOM é opcional e depende de
   ferramenta e autenticação compatíveis, não sendo requisito de pesquisa.
+- **[CRAV](references/16-crav-pedidos-reproducao.md)** — balcão DGLAB para informação,
+  pesquisa, reprodução e certidão; login, escopo da cópia e orçamento verificados antes do envio.
 - **AHU (Arquivo Histórico Ultramarino) / Projeto Resgate** — Brasil colonial.
 - **Arquivos Distritais** (AD…) e registo civil/paroquial brasileiro.
 - **Hemerotecas digitais** — Biblioteca Nacional (Brasil) e Biblioteca Nacional de Portugal.
@@ -254,3 +256,22 @@ implementações e os seus testes; não repõe cópias antigas dos scripts.
 Para validar: `ruff check scripts tests` e `pytest -q`. O teste de contrato na rede
 continua opcional (`DIGITARQ_LIVE=1 pytest -q -m live`), fora do CI, com pausas e
 amostra neutra. Os testes offline geram os seus próprios dados temporários.
+
+## Integração operacional e CRAV — 08/09/2026
+
+- **[Execução guiada](references/14-execucao-guiada.md)** e
+  **[receitas por tarefa](references/15-receitas-operacionais.md)** tornam as decisões e
+  condições de parada explícitas, com [ficha de operação](templates/operation_card.template.md).
+  São apoio operacional; não prometem equivalência de capacidade entre modelos.
+- **[CRAV](references/16-crav-pedidos-reproducao.md):** escolha da modalidade, cadastro
+  protegido, teste real de acesso, referência individual versus livro, cópia digital,
+  orçamento prévio, submissão única e conferência de protocolo/comprovativo.
+- **[Ficha CRAV](templates/crav_request.template.md):** comentários explicam por que
+  uma cópia Total exige atenção ao nível documental e por que clicar não comprova envio.
+- A recuperação por login email/senha em perfil separado é alternativa observada para
+  uma sessão travada, não correção universal nem permissão para reutilizar tokens.
+- O roteiro de APIs complementares permanece disponível; a sincronização preserva
+  scripts, testes e comentários explicativos do autor, incluindo o auditor GEDCOM.
+
+Esta contribuição contém apenas procedimentos e templates vazios. Contas, protocolos,
+recibos, documentos, dados familiares e resultados individuais permanecem fora do repositório.
