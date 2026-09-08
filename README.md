@@ -46,9 +46,11 @@ agente a usar as suas próprias contas de arquivo.
 - **AHU (Arquivo Histórico Ultramarino) / Projeto Resgate** — Brasil colonial.
 - **Arquivos Distritais** (AD…) e registo civil/paroquial brasileiro.
 - **Hemerotecas digitais** — Biblioteca Nacional (Brasil) e Biblioteca Nacional de Portugal.
+- **APIs públicas complementares** — Arquivo.pt para URLs arquivados e OAI-PMH para
+  descrições de catálogos, sempre como fontes de orientação/recuperação delimitada.
 
-Os detalhes de *endpoints*, códigos de referência de paróquias, tipos de assento e lógica de
-quebra de muros estão em `references/`.
+Os detalhes de *endpoints*, códigos de referência de paróquias, tipos de assento, APIs
+públicas complementares e lógica de quebra de muros estão em `references/`.
 
 ---
 

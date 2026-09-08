@@ -28,6 +28,8 @@ Frentes independentes são possíveis dentro do pedido; cada uma deve ter recort
 - **Imprensa:** hemerotecas da Biblioteca Nacional brasileira e portuguesa.
 
 Para imigração, consulte [o roteiro](references/10-imigracao-portugal-brasil.md).
+Para recuperar URLs antigos ou avaliar catálogos por API, use
+[APIs públicas complementares](references/13-apis-publicas-e-arquivo-web.md).
 
 Leia os guias de [DigitArq](references/01-portugal-torre-do-tombo-digitarq.md),
 [FamilySearch](references/02-familysearch.md) ou [outros arquivos](references/08-outros-arquivos.md)
@@ -135,6 +137,8 @@ Confira `--help`; instale só dependências necessárias. Saídas ficam no proje
   [GEDCOM](references/07-gedcom.md): exportação opcional, nunca requisito de pesquisa.
 - `scripts/notify.py`: notificador opcional; use só destino autorizado e credenciais
   protegidas. A versão atual redige tokens em erros; não configure por estar incluída.
+- `references/13-apis-publicas-e-arquivo-web.md`: recuperação delimitada de URLs no Arquivo.pt
+  e avaliação OAI-PMH. HTTP 200 ou metadado não são prova genealógica.
 - [Inquisição](references/05-inquisicao-cristao-novo.md): só quando pertinente;
   categoria histórica não presume identidade.
 
