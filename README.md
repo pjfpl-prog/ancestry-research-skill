@@ -45,6 +45,9 @@ agente a usar as suas próprias contas de arquivo.
   ferramenta e autenticação compatíveis, não sendo requisito de pesquisa.
 - **[CRAV](references/16-crav-pedidos-reproducao.md)** — balcão DGLAB para informação,
   pesquisa, reprodução e certidão; login, escopo da cópia e orçamento verificados antes do envio.
+- **[CEPESE](references/17-cepese-emigracao.md)** — índices de emigração portuguesa e
+  ponte para localizar processos de passaporte no arquivo detentor; resultado é pista,
+  não certidão nem prova de embarque.
 - **AHU (Arquivo Histórico Ultramarino) / Projeto Resgate** — Brasil colonial.
 - **Arquivos Distritais** (AD…) e registo civil/paroquial brasileiro.
 - **Hemerotecas digitais** — Biblioteca Nacional (Brasil) e Biblioteca Nacional de Portugal.

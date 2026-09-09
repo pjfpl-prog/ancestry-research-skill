@@ -80,3 +80,11 @@ Detalhes: [APIs](13-apis-publicas-e-arquivo-web.md).
 3. Submeta uma vez e confira protocolo, referência e estado em Meus pedidos; guarde o comprovativo oficial e o texto enviado.
 4. Registe como correspondência administrativa nos destinos privados autorizados. Pedido submetido não confirma datas, parentescos nem recebimento da imagem.
 **Saída:** protocolo/comprovativo verificados ou bloqueio preciso; orçamento não aceite e documento ainda não lido continuam pendentes.
+
+## J. CEPESE: índice de emigração → processo de passaporte
+1. Confirme que a pergunta é sobre emigração portuguesa e leia [o guia CEPESE](17-cepese-emigracao.md). O portal indexa registos; não trate-o como arquivo do documento original.
+2. Pesquise por nome completo ou parcial e naturalidade; varie grafias e relaxe um filtro por vez. Guarde consulta, filtros, data, total/retorno e ID de cada candidato.
+3. Compare candidato com âncoras independentes: idade, estado civil, profissão, naturalidade, destino, parentes ou cronologia. Nome, distrito ou destino isolados não resolvem homónimos.
+4. Para candidato promissor, localize o processo físico pelo arquivo distrital indicado. Solicite data/número/localização ao CEPESE somente quando autorizado para contacto externo; arquive a resposta como referência administrativa.
+5. Leia o processo ou sua reprodução antes de afirmar emissão de passaporte, filiação, viagem ou identidade. Passaporte emitido não prova embarque, chegada nem permanência.
+**Saída:** pista rastreável para o arquivo, documento primário lido ou negativa delimitada; um ID de índice nunca promove parentesco por si só.

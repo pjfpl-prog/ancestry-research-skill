@@ -14,7 +14,7 @@ e preencha a [ficha de operação](templates/operation_card.template.md) no acer
 Depois abra apenas a receita pertinente em [receitas operacionais](references/15-receitas-operacionais.md):
 A DigitArq; B livros/inventários; C FamilySearch; D documentos/imagens; E datas/entrevistas;
 F Gramps/auditoria/desenho; G correspondência/imigração; H APIs/aprendizado;
-I CRAV/reprodução/orçamento.
+I CRAV/reprodução/orçamento; J CEPESE/índices de emigração.
 O ciclo abaixo orienta a pesquisa; o roteiro detalha as verificações antes de cada avanço.
 
 Modelos compactos executam unidades verificáveis; leitura ou identidade ambígua pede
@@ -41,6 +41,9 @@ Frentes independentes são possíveis dentro do pedido; cada uma deve ter recort
 - **Imprensa:** hemerotecas da Biblioteca Nacional brasileira e portuguesa.
 
 Para imigração, consulte [o roteiro](references/10-imigracao-portugal-brasil.md).
+Para índices do CEPESE sobre emigração portuguesa, use
+[o guia CEPESE](references/17-cepese-emigracao.md): o resultado orienta a busca pelo
+passaporte, mas não substitui o processo no arquivo detentor.
 Para recuperar links antigos ou avaliar catálogos por API, use
 [APIs públicas complementares](references/13-apis-publicas-e-arquivo-web.md).
 
