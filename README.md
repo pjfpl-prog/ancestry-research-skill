@@ -50,7 +50,9 @@ agente a usar as suas próprias contas de arquivo.
   não certidão nem prova de embarque.
 - **AHU (Arquivo Histórico Ultramarino) / Projeto Resgate** — Brasil colonial.
 - **Arquivos Distritais** (AD…) e registo civil/paroquial brasileiro.
-- **Hemerotecas digitais** — Biblioteca Nacional (Brasil) e Biblioteca Nacional de Portugal.
+- **Hemerotecas digitais** — Biblioteca Nacional do Brasil, com ferramenta própria
+  (`scripts/hemeroteca_bn.py`: lista de edições por termo e PDF da edição **sem CAPTCHA**,
+  busca de página pelo OCR, recorte para leitura); Biblioteca Nacional de Portugal.
 - **APIs públicas complementares** — Arquivo.pt para URLs arquivados e OAI-PMH para
   descrições de catálogos, sempre como fontes de orientação/recuperação delimitada.
 
@@ -107,6 +109,10 @@ pip install -r scripts/requirements.txt
   - `Pillow` (PIL) — recorte, ampliação, *autocontrast* e *threshold* das imagens para leitura.
   - `getmyancestors` — **opcional**, em `scripts/requirements-familysearch.txt`: extração de árvore
     do FamilySearch para GEDCOM (login do próprio utilizador).
+  - `truststore` e `PyMuPDF` — **opcionais**, em `scripts/requirements-hemeroteca.txt`: só para a
+    Hemeroteca da BN (o certificado dela não é validado pelo `certifi`; o PyMuPDF lê o PDF).
+    O `truststore` exige **Python 3.10+**; em 3.9 ficam fora só os subcomandos de rede
+    (`edicoes`, `pdf`); `paginas`, `extrair` e `dpi` sobre um PDF já baixado correm.
 
 Instale com `pip install -r scripts/requirements.txt`. As dependências têm **limites de versão**
 (intervalos, não pinos exactos): a skill é copiada para ambientes alheios, e pino exacto gera
@@ -150,7 +156,7 @@ ancestry-research-skill/
 ├── references/          # conhecimento de referência: endpoints, tipos de assento,
 │                        #   paleografia, lógica de quebra de muros, fontes por país
 ├── scripts/             # utilitários Python (busca, download, preparação de imagem...)
-│   └── requirements.txt #   dependências Python
+│   └── requirements*.txt#   dependências Python (base, familysearch, hemeroteca)
 ├── templates/           # modelos de saída: ficha de achado, dossiê, registo de fontes
 └── examples/            # exemplos com PLACEHOLDERS / registos públicos neutros
                          #   (nenhuma família real)
@@ -248,6 +254,10 @@ implementações e os seus testes; não repõe cópias antigas dos scripts.
 - **[Gramps e visuais](references/12-gramps-e-arvores-visuais.md):** migração validada por
   reexportação, armazenamento persistente, primeiro acesso privado, atualizações por IDs,
   notas de pesquisa por pessoa e árvores que preservam incerteza e candidatos.
+- **[Hemeroteca Digital Brasileira](references/18-hemeroteca-bn.md):** doutrina separada dos
+  fatos de endpoint datados; lista de edições e PDF sem CAPTCHA; a codificação do espaço que
+  decide se a busca é por frase; lista vazia e 404 tratados como ambíguos, nunca como ausência;
+  teste live próprio (`HEMEROTECA_BN_LIVE=1`).
 - **[FamilySearch](references/02-familysearch.md):** fontes vinculadas, filtros
   progressivos e requisitos conjuntos no Full-Text; download integral versus captura;
   login, elegibilidade da aplicação, escopo de API e restrição de imagem são estados

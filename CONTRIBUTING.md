@@ -11,6 +11,11 @@ credenciais, ou imagens descarregadas de um arquivo.**
 Isto vale para o código, para a documentação, para os exemplos e para os testes. Use sempre
 placeholders: `{GUID}`, `{fileId}`, `TERMO`, `<ARK>`, `{PID_RAIZ}`, `Freguesia X`, `Concelho Y`.
 
+Uma excepção estreita, sempre com o motivo escrito no teste: quando uma fixture tem de ser a
+resposta **real** de um servidor (o que exige um termo que exista no acervo), o termo pode ser o
+nome de uma **figura pública histórica**, morta há mais de um século, sem ligação a quem pesquisa.
+Nunca um antepassado, nunca uma pessoa viva.
+
 Ficheiros `.ged` e imagens **não entram no repositório**, nem como ficheiro de teste. Os testes
 geram os seus próprios GEDCOM em tempo de execução, em `tmp_path`. É de propósito: um `.ged`
 versionado é a árvore de alguém.

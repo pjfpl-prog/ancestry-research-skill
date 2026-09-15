@@ -38,7 +38,9 @@ Frentes independentes são possíveis dentro do pedido; cada uma deve ter recort
   1911 orienta a busca, mas não prova ausência do registro nem sua custódia atual.
 - **Brasil:** FamilySearch para registros civis e paroquiais; arquivos locais e
   cartórios conforme lugar/época. Para o período colonial, AHU/Projeto Resgate.
-- **Imprensa:** hemerotecas da Biblioteca Nacional brasileira e portuguesa.
+- **Imprensa:** hemerotecas da Biblioteca Nacional brasileira e portuguesa. A brasileira
+  tem [guia e ferramenta próprios](references/18-hemeroteca-bn.md); jornal data e localiza,
+  a filiação que sugere continua secundária até o assento.
 
 Para imigração, consulte [o roteiro](references/10-imigracao-portugal-brasil.md).
 Para índices do CEPESE sobre emigração portuguesa, use
@@ -136,6 +138,10 @@ Gramps ou uma visualização autorizada, use [migração e manutenção](referen
 
 Confira `--help` da versão instalada; saídas ficam no acervo do projeto.
 - `scripts/digitarq.py`: search, details, images e download público; não sobrescreva originais.
+- `scripts/hemeroteca_bn.py`: Hemeroteca da BN (Brasil) sem CAPTCHA: `edicoes` de um título por
+  termo (frase exata só com `%20`; lista vazia é ambígua), `pdf` da edição, `paginas` pelo OCR
+  embutido (declara a palavra usada), `extrair` página/recortes (declara truncamento), `dpi`.
+  O mapa de títulos vem do navegador; OCR acha, a imagem prova. [Guia](references/18-hemeroteca-bn.md).
 - `scripts/image_tools.py`: crop, enhance, folio e split em derivados.
 - `scripts/gedcom_audit.py`: auditoria somente leitura de exportação, não prova genealógica.
 - `scripts/notify.py`: opcional, apenas para destino autorizado e autenticação protegida.

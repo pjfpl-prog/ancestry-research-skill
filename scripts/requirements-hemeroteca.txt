@@ -1,0 +1,18 @@
+# Opcional: so para quem vai usar a Hemeroteca Digital Brasileira (hemeroteca_bn.py).
+# Instale com:  pip install -r scripts/requirements.txt -r scripts/requirements-hemeroteca.txt
+# (o requests, que o script tambem importa, vem do requirements.txt base).
+#
+# Fica separado do requirements.txt para que quem so usa o DigitArq nao pague a
+# instalacao do PyMuPDF (motor de PDF em C, dezenas de MB).
+#
+# truststore: OBRIGATORIO para a BN, e so existe para Python 3.10 ou mais recente
+# (o marcador abaixo salta-o em 3.9, onde o script avisa que falta). O pacote de
+# certificados que o Python traz (certifi) nao tem a cadeia de memoria.bn.gov.br
+# nem de hemeroteca-pdf.bn.gov.br (verificado em 15/09/2026: CERTIFICATE_VERIFY_FAILED
+# nos dois); o repositorio de certificados do sistema operativo tem, e truststore
+# faz o Python usa-lo.
+# PyMuPDF: ler a camada de texto do PDF, rasterizar e recortar paginas. So e
+# preciso para `paginas`, `extrair` e `dpi`; `edicoes` e `pdf` correm sem ele.
+
+truststore>=0.9,<1; python_version >= "3.10"
+PyMuPDF>=1.24,<2

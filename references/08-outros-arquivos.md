@@ -111,8 +111,9 @@ necrológios, notas de missa de 7º dia, casamentos sociais, posses de cargo,
 chegadas de vapor, listas de passageiros, anúncios.
 
 **Brasil — Hemeroteca Digital da Biblioteca Nacional**
-- `memoria.bn.br` (Hemeroteca Digital Brasileira): periódicos por título e por
-  período; busca por palavra com OCR.
+- `memoria.bn.gov.br` (Hemeroteca Digital Brasileira): periódicos por título e por
+  período; busca por palavra com OCR. Guia operacional, armadilhas e a ferramenta
+  `scripts/hemeroteca_bn.py` em [`18-hemeroteca-bn.md`](18-hemeroteca-bn.md).
 
 **Portugal — Biblioteca Nacional de Portugal**
 - `hemerotecadigital.bnportugal.gov.pt`: gazetas e jornais portugueses

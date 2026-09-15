@@ -40,6 +40,7 @@
 !scripts/*.py
 !scripts/requirements.txt
 !scripts/requirements-familysearch.txt
+!scripts/requirements-hemeroteca.txt
 !scripts/requirements-dev.txt
 
 # Templates: markdown e o esqueleto de workflow

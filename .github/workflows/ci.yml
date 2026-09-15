@@ -1,8 +1,9 @@
 name: CI
 
 # Nao chama a rede. Os testes usam substitutos das funcoes de HTTP e ficheiros
-# GEDCOM gerados em memoria. O unico teste que fala com o DigitArq e marcado
-# `live` e corre a mao (ver tests/test_digitarq.py).
+# GEDCOM e PDF gerados em memoria. Os testes que falam com servidores reais
+# (tests/test_digitarq_live.py, tests/test_hemeroteca_bn_live.py) sao marcados
+# `live` e correm a mao, cada um com a sua variavel (DIGITARQ_LIVE, HEMEROTECA_BN_LIVE).
 on:
   push:
     branches: [main, master]
@@ -29,6 +30,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r scripts/requirements.txt
+          # opcional para quem usa a skill; aqui entra para os testes do
+          # hemeroteca_bn.py nao serem saltados (importorskip) no CI
+          pip install -r scripts/requirements-hemeroteca.txt
           pip install -r scripts/requirements-dev.txt
 
       - name: Lint
