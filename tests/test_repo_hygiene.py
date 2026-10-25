@@ -42,7 +42,11 @@ PERMITIDO = {
 }
 EMAILS_PERMITIDOS = re.compile(
     r"noreply@example\.com|users\.noreply\.github\.com|"
-    r"[a-z_]+@(?:exemplo|example)\.(?:com|org|pt)"
+    r"[a-z_]+@(?:exemplo|example)\.(?:com|org|pt)|"
+    # autor do commit inicial. O noreply@example.com estava registado na conta de um
+    # estranho e o GitHub atribuia-lhe o commit; o dominio .invalid e reservado
+    # (RFC 2606) e nunca recebe e-mail, por isso ninguem o consegue verificar
+    r"noreplay@exxample\.invalid"
 )
 
 
