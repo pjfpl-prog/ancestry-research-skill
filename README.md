@@ -232,6 +232,16 @@ robustos. **Regra inquebrável:** nenhuma contribuição pode incluir dados pess
 genealogias de famílias específicas ou credenciais. Use sempre placeholders (`{GUID}`,
 `{fileId}`, `TERMO`, `<ARK>`) ou registos públicos neutros nos exemplos.
 
+## Créditos
+
+- **Leonardo Eloi** ([leonardoeloi](https://github.com/leonardoeloi)), coautor. Descobriu que o
+  endpoint de imagens do DigitArq ignora `from` e só obedece a `fromIndex` (antes disso, um livro
+  com mais de uma página devolvia a primeira repetida) e corrigiu a paginação com verificação de
+  deslocamento, IDs repetidos e páginas vazias. Compactou o `SKILL.md` e escreveu os guias 09 a 17
+  (correlação e arquivo, imigração Portugal-Brasil, inventários e certidões anexas, Gramps,
+  APIs públicas e arquivo web, execução guiada, receitas operacionais, pedidos de reprodução ao
+  CRAV e emigração pelo CEPESE), além dos modelos de pedido ao CRAV e de cartão de operação.
+
 ## Integração dos aprendizados de pesquisa — 07/09/2026
 
 Esta revisão parte das melhorias do autor em paginação de busca, `filesCount`, downloads,
